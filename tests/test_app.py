@@ -3,6 +3,9 @@ from __future__ import annotations
 from typing import Any
 
 import app as app_module
+import backend
+import projects_routes
+import workbook_routes
 from app import app
 
 
@@ -20,85 +23,102 @@ class FakeResponse:
         return self._payload
 
 
-def test_health(monkeypatch):
-    monkeypatch.setattr(app_module, "SUPABASE_URL", "https://example.supabase.co")
-    monkeypatch.setattr(app_module, "SUPABASE_SECRET_KEY", "secret")
-    monkeypatch.setattr(
-        app_module,
-        "supabase_request",
-        lambda *args, **kwargs: FakeResponse(200, []),
-    )
+def google_user(email: str = "usuario@gmail.com") -> dict[str, Any]:
+    return {
+        "id": "user-id",
+        "email": email,
+        "app_metadata": {"provider": "google", "providers": ["google"]},
+        "user_metadata": {"full_name": "Usuário Teste"},
+        "identities": [{"provider": "google"}],
+    }
 
-    client = app.test_client()
-    response = client.get("/api/health")
+
+def authorize(monkeypatch, email: str = "usuario@gmail.com") -> None:
+    monkeypatch.setattr(backend, "verify_user_token", lambda token: (google_user(email), None))
+
+
+def test_health(monkeypatch):
+    monkeypatch.setattr(app_module, "configured", lambda: True)
+    monkeypatch.setattr(app_module, "db", lambda *args, **kwargs: FakeResponse(200, []))
+
+    response = app.test_client().get("/api/health")
 
     assert response.status_code == 200
-    assert response.get_json()["status"] == "ok"
-    assert response.get_json()["database"] == "supabase"
+    assert response.get_json() == {"status": "ok", "database": "supabase"}
 
 
-def test_health_without_configuration(monkeypatch):
-    monkeypatch.setattr(app_module, "SUPABASE_URL", "")
-    monkeypatch.setattr(app_module, "SUPABASE_SECRET_KEY", "")
+def test_protected_api_requires_login():
+    response = app.test_client().get("/api/projects")
 
-    client = app.test_client()
-    response = client.get("/api/health")
-
-    assert response.status_code == 503
-    assert response.get_json()["configured"] is False
+    assert response.status_code == 401
+    assert "login" in response.get_json()["error"].lower()
 
 
-def test_workbook_crud(monkeypatch):
-    monkeypatch.setattr(app_module, "SUPABASE_URL", "https://example.supabase.co")
-    monkeypatch.setattr(app_module, "SUPABASE_SECRET_KEY", "secret")
+def test_create_shared_project(monkeypatch):
+    authorize(monkeypatch)
+    created = {
+        "id": 7,
+        "name": "Projeto Comercial",
+        "owner_email": "usuario@gmail.com",
+        "created_at": "2026-07-15T00:00:00+00:00",
+        "updated_at": "2026-07-15T00:00:00+00:00",
+    }
+    monkeypatch.setattr(
+        projects_routes,
+        "insert_one",
+        lambda table, payload: (created.copy(), FakeResponse(201, [created.copy()])),
+    )
+    monkeypatch.setattr(projects_routes, "ensure_owner_membership", lambda project: None)
 
-    def fake_request(method: str, path: str, **kwargs: Any) -> FakeResponse:
-        if method == "POST":
-            return FakeResponse(
-                201,
-                [
-                    {
-                        "id": 1,
-                        "name": "Teste",
-                        "payload": {"version": 1, "cells": [[1, "=SOMA(A1:A1)"]]},
-                        "created_at": "2026-07-15T00:00:00+00:00",
-                        "updated_at": "2026-07-15T00:00:00+00:00",
-                    }
-                ],
-            )
-        if method == "GET" and kwargs.get("params", {}).get("id") == "eq.1":
-            return FakeResponse(
-                200,
-                [
-                    {
-                        "id": 1,
-                        "name": "Teste",
-                        "payload": {"version": 1, "cells": [[1, "=SOMA(A1:A1)"]]},
-                        "created_at": "2026-07-15T00:00:00+00:00",
-                        "updated_at": "2026-07-15T00:00:00+00:00",
-                    }
-                ],
-            )
-        if method == "DELETE":
-            return FakeResponse(200, [{"id": 1}])
-        return FakeResponse(200, [])
+    response = app.test_client().post(
+        "/api/projects",
+        headers={"Authorization": "Bearer valid-token"},
+        json={"name": "Projeto Comercial"},
+    )
 
-    monkeypatch.setattr(app_module, "supabase_request", fake_request)
+    assert response.status_code == 200
+    assert response.get_json()["id"] == 7
+    assert response.get_json()["role"] == "owner"
 
-    client = app.test_client()
-    created = client.post(
+
+def test_rejects_stale_workbook_revision(monkeypatch):
+    authorize(monkeypatch)
+    current = {
+        "id": 11,
+        "name": "Orçamento",
+        "project_id": 3,
+        "folder_id": None,
+        "revision": 4,
+        "payload": {"version": 1, "name": "Orçamento", "rows": 1, "cols": 1, "cells": [[100]]},
+        "created_at": "2026-07-15T00:00:00+00:00",
+        "updated_at": "2026-07-15T01:00:00+00:00",
+        "created_by_email": "usuario@gmail.com",
+        "updated_by_email": "outra.pessoa@gmail.com",
+    }
+    monkeypatch.setattr(
+        workbook_routes,
+        "get_workbook",
+        lambda workbook_id, include_payload=False: (current.copy(), FakeResponse(200, [current.copy()])),
+    )
+    monkeypatch.setattr(
+        workbook_routes,
+        "require_project",
+        lambda project_id, minimum_role="viewer": ({"id": project_id}, "editor", None),
+    )
+
+    response = app.test_client().post(
         "/api/workbooks",
+        headers={"Authorization": "Bearer valid-token"},
         json={
-            "name": "Teste",
-            "data": {"version": 1, "cells": [[1, "=SOMA(A1:A1)"]]},
+            "id": 11,
+            "name": "Orçamento",
+            "base_revision": 3,
+            "data": {"version": 1, "name": "Orçamento", "rows": 1, "cols": 1, "cells": [[200]]},
         },
     )
-    assert created.status_code == 200
-    workbook_id = created.get_json()["id"]
 
-    loaded = client.get(f"/api/workbooks/{workbook_id}")
-    assert loaded.status_code == 200
-    assert loaded.get_json()["data"]["cells"][0][0] == 1
-
-    deleted = client.delete(f"/api/workbooks/{workbook_id}")
-    assert deleted.status_code == 200
+    assert response.status_code == 409
+    body = response.get_json()
+    assert body["conflict"] is True
+    assert body["current"]["revision"] == 4
+    assert body["current"]["data"]["cells"] == [[100]]
