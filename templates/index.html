@@ -3,15 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Super Excel: planilha web com Flask e HyperFormula.">
+  <meta name="description" content="Super Excel: planilha web colaborativa com Flask e HyperFormula.">
   <title>Super Excel</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/collaboration.css') }}">
 </head>
 <body class="auth-pending sheet-loading">
   <header class="topbar">
-    <div class="brand"><span class="brand-mark">S</span><div><strong>Super Excel</strong><small>Flask + HyperFormula</small></div></div>
+    <div class="brand"><span class="brand-mark">S</span><div><strong>Super Excel</strong><small>Planilha colaborativa</small></div></div>
     <input id="workbook-name" class="workbook-name" value="Minha Planilha" maxlength="120" aria-label="Nome da planilha">
+    <div class="collaboration-summary" aria-live="polite">
+      <div id="collaborators" class="collaborators"></div>
+      <div><strong id="collaboration-state">Conectando...</strong><small id="collaboration-detail">Sincronização automática</small></div>
+    </div>
     <div class="top-actions">
       <button type="button" onclick="location.href='/files'">Arquivos</button>
       <button id="new-button" type="button">Nova</button>
@@ -42,7 +47,7 @@
     <footer class="statusbar"><span id="status-message">Pronto</span><span id="selection-summary"></span><span>HyperFormula 3.3.0 · pt-BR</span></footer>
   </main>
   <dialog id="functions-dialog" class="dialog functions-dialog"><div class="dialog-header"><div><h2>30 fórmulas disponíveis</h2><p>Use ponto e vírgula <code>;</code> entre argumentos.</p></div><button class="icon-button" data-close-dialog="functions-dialog" aria-label="Fechar">×</button></div><div id="functions-list" class="functions-list"></div></dialog>
-  <dialog id="open-dialog" class="dialog open-dialog"><div class="dialog-header"><div><h2>Abrir planilha</h2><p>Arquivos salvos no servidor Flask.</p></div><button class="icon-button" data-close-dialog="open-dialog" aria-label="Fechar">×</button></div><div id="workbooks-list" class="workbooks-list"></div></dialog>
+  <dialog id="open-dialog" class="dialog open-dialog"><div class="dialog-header"><div><h2>Abrir planilha</h2><p>Arquivos disponíveis nos seus projetos.</p></div><button class="icon-button" data-close-dialog="open-dialog" aria-label="Fechar">×</button></div><div id="workbooks-list" class="workbooks-list"></div></dialog>
   <p data-auth-error class="error-text" hidden></p>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
