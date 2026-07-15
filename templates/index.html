@@ -6,17 +6,23 @@
   <meta name="description" content="Super Excel: planilha web com Flask e HyperFormula.">
   <title>Super Excel</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
-<body>
+<body class="auth-pending sheet-loading">
   <header class="topbar">
     <div class="brand"><span class="brand-mark">S</span><div><strong>Super Excel</strong><small>Flask + HyperFormula</small></div></div>
-    <input id="workbook-name" class="workbook-name" value="{{ preload_workbook.name if preload_workbook else 'Minha Planilha' }}" maxlength="120" aria-label="Nome da planilha">
+    <input id="workbook-name" class="workbook-name" value="Minha Planilha" maxlength="120" aria-label="Nome da planilha">
     <div class="top-actions">
-      <button type="button" onclick="location.href='/'">Arquivos</button>
+      <button type="button" onclick="location.href='/files'">Arquivos</button>
       <button id="new-button" type="button">Nova</button>
       <button id="open-button" type="button">Abrir</button>
       <button id="save-button" type="button" class="primary">Salvar</button>
       <button id="functions-button" type="button">30 fórmulas</button>
+      <div class="auth-user">
+        <img class="auth-avatar" data-auth-avatar src="" alt="">
+        <div class="auth-user-text"><strong data-auth-name>Conta Google</strong><span data-auth-email></span></div>
+        <button class="auth-signout" type="button" data-auth-signout>Sair</button>
+      </div>
     </div>
   </header>
   <main>
@@ -37,7 +43,9 @@
   </main>
   <dialog id="functions-dialog" class="dialog functions-dialog"><div class="dialog-header"><div><h2>30 fórmulas disponíveis</h2><p>Use ponto e vírgula <code>;</code> entre argumentos.</p></div><button class="icon-button" data-close-dialog="functions-dialog" aria-label="Fechar">×</button></div><div id="functions-list" class="functions-list"></div></dialog>
   <dialog id="open-dialog" class="dialog open-dialog"><div class="dialog-header"><div><h2>Abrir planilha</h2><p>Arquivos salvos no servidor Flask.</p></div><button class="icon-button" data-close-dialog="open-dialog" aria-label="Fechar">×</button></div><div id="workbooks-list" class="workbooks-list"></div></dialog>
-  {% if preload_workbook %}<script>localStorage.setItem('super-excel-autosave-v1', JSON.stringify({{ preload_workbook|tojson|safe }}));</script>{% endif %}
+  <p data-auth-error class="error-text" hidden></p>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="https://cdn.jsdelivr.net/npm/hyperformula@3.3.0/dist/hyperformula.full.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/hyperformula@3.3.0/dist/languages/ptPT.js"></script>
   <script src="{{ url_for('static', filename='js/formula-engine.js') }}"></script>
