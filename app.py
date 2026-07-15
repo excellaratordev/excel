@@ -2,48 +2,57 @@ from __future__ import annotations
 
 import json
 import os
-import sqlite3
-from datetime import datetime, timezone
-from pathlib import Path
 from typing import Any
 
+import requests
 from flask import Flask, jsonify, render_template, request
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = Path(os.getenv("SUPER_EXCEL_DATA_DIR", BASE_DIR / "data"))
-DATABASE_PATH = Path(os.getenv("SUPER_EXCEL_DB", DATA_DIR / "super_excel.db"))
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
+SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "")
+SUPABASE_TABLE = os.getenv("SUPABASE_TABLE", "workbooks")
+REQUEST_TIMEOUT = float(os.getenv("SUPABASE_TIMEOUT", "15"))
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_WORKBOOK_BYTES + 512 * 1024
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
+def supabase_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_SECRET_KEY)
 
 
-def get_connection() -> sqlite3.Connection:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(DATABASE_PATH)
-    connection.row_factory = sqlite3.Row
-    return connection
+def supabase_headers(*, prefer: str | None = None) -> dict[str, str]:
+    if not supabase_configured():
+        raise RuntimeError("SUPABASE_URL e SUPABASE_SECRET_KEY não foram configurados.")
+
+    headers = {
+        "apikey": SUPABASE_SECRET_KEY,
+        "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
+        "Content-Type": "application/json",
+    }
+    if prefer:
+        headers["Prefer"] = prefer
+    return headers
 
 
-def init_database() -> None:
-    with get_connection() as connection:
-        connection.execute(
-            """
-            CREATE TABLE IF NOT EXISTS workbooks (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                name TEXT NOT NULL UNIQUE COLLATE NOCASE,
-                payload TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL
-            )
-            """
-        )
-        connection.commit()
+def supabase_request(
+    method: str,
+    path: str,
+    *,
+    params: dict[str, str] | None = None,
+    payload: Any | None = None,
+    prefer: str | None = None,
+) -> requests.Response:
+    response = requests.request(
+        method,
+        f"{SUPABASE_URL}/rest/v1/{path}",
+        headers=supabase_headers(prefer=prefer),
+        params=params,
+        json=payload,
+        timeout=REQUEST_TIMEOUT,
+    )
+    return response
 
 
 def parse_workbook_payload(body: dict[str, Any]) -> tuple[str, dict[str, Any]]:
@@ -64,6 +73,16 @@ def parse_workbook_payload(body: dict[str, Any]) -> tuple[str, dict[str, Any]]:
     return name, payload
 
 
+def api_error(response: requests.Response, fallback: str) -> tuple[Any, int]:
+    try:
+        details = response.json()
+    except ValueError:
+        details = {"message": response.text[:500]}
+
+    message = details.get("message") or details.get("hint") or fallback
+    return jsonify({"error": message}), response.status_code
+
+
 @app.get("/")
 def index() -> str:
     return render_template("index.html")
@@ -71,38 +90,91 @@ def index() -> str:
 
 @app.get("/api/health")
 def health() -> Any:
+    if not supabase_configured():
+        return jsonify(
+            {
+                "status": "error",
+                "app": "Super Excel",
+                "database": "supabase",
+                "configured": False,
+                "error": "Variáveis do Supabase ausentes.",
+            }
+        ), 503
+
+    try:
+        response = supabase_request(
+            "GET",
+            SUPABASE_TABLE,
+            params={"select": "id", "limit": "1"},
+        )
+    except requests.RequestException as error:
+        return jsonify(
+            {
+                "status": "error",
+                "app": "Super Excel",
+                "database": "supabase",
+                "configured": True,
+                "error": str(error),
+            }
+        ), 503
+
+    if not response.ok:
+        return api_error(response, "Falha ao consultar o Supabase.")
+
     return jsonify(
         {
             "status": "ok",
             "app": "Super Excel",
-            "database": str(DATABASE_PATH),
-            "mode": "online" if os.getenv("PORT") else "local",
+            "database": "supabase",
+            "configured": True,
         }
     )
 
 
 @app.get("/api/workbooks")
 def list_workbooks() -> Any:
-    with get_connection() as connection:
-        rows = connection.execute(
-            "SELECT id, name, created_at, updated_at FROM workbooks ORDER BY updated_at DESC"
-        ).fetchall()
-    return jsonify([dict(row) for row in rows])
+    try:
+        response = supabase_request(
+            "GET",
+            SUPABASE_TABLE,
+            params={
+                "select": "id,name,created_at,updated_at",
+                "order": "updated_at.desc",
+            },
+        )
+    except (RuntimeError, requests.RequestException) as error:
+        return jsonify({"error": str(error)}), 503
+
+    if not response.ok:
+        return api_error(response, "Erro ao listar planilhas.")
+
+    return jsonify(response.json())
 
 
 @app.get("/api/workbooks/<int:workbook_id>")
 def get_workbook(workbook_id: int) -> Any:
-    with get_connection() as connection:
-        row = connection.execute(
-            "SELECT id, name, payload, created_at, updated_at FROM workbooks WHERE id = ?",
-            (workbook_id,),
-        ).fetchone()
+    try:
+        response = supabase_request(
+            "GET",
+            SUPABASE_TABLE,
+            params={
+                "select": "id,name,payload,created_at,updated_at",
+                "id": f"eq.{workbook_id}",
+                "limit": "1",
+            },
+        )
+    except (RuntimeError, requests.RequestException) as error:
+        return jsonify({"error": str(error)}), 503
 
-    if row is None:
+    if not response.ok:
+        return api_error(response, "Erro ao abrir planilha.")
+
+    rows = response.json()
+    if not rows:
         return jsonify({"error": "Planilha não encontrada."}), 404
 
-    result = dict(row)
-    result["data"] = json.loads(result.pop("payload"))
+    result = rows[0]
+    result["data"] = result.pop("payload")
     return jsonify(result)
 
 
@@ -115,47 +187,65 @@ def save_workbook() -> Any:
         return jsonify({"error": str(error)}), 400
 
     workbook_id = body.get("id")
-    timestamp = utc_now()
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+    record = {"name": name, "payload": payload}
 
     try:
-        with get_connection() as connection:
-            if workbook_id is not None:
-                cursor = connection.execute(
-                    """
-                    UPDATE workbooks
-                    SET name = ?, payload = ?, updated_at = ?
-                    WHERE id = ?
-                    """,
-                    (name, encoded, timestamp, int(workbook_id)),
-                )
-                if cursor.rowcount == 0:
-                    return jsonify({"error": "Planilha não encontrada."}), 404
-                saved_id = int(workbook_id)
-            else:
-                cursor = connection.execute(
-                    """
-                    INSERT INTO workbooks (name, payload, created_at, updated_at)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (name, encoded, timestamp, timestamp),
-                )
-                saved_id = int(cursor.lastrowid)
-            connection.commit()
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "Já existe uma planilha com esse nome."}), 409
+        if workbook_id is None:
+            response = supabase_request(
+                "POST",
+                SUPABASE_TABLE,
+                payload=record,
+                prefer="return=representation",
+            )
+        else:
+            response = supabase_request(
+                "PATCH",
+                SUPABASE_TABLE,
+                params={"id": f"eq.{int(workbook_id)}"},
+                payload=record,
+                prefer="return=representation",
+            )
+    except (RuntimeError, ValueError, TypeError, requests.RequestException) as error:
+        return jsonify({"error": str(error)}), 503
 
-    return jsonify({"id": saved_id, "name": name, "updated_at": timestamp})
+    if response.status_code == 409:
+        return jsonify({"error": "Já existe uma planilha com esse nome."}), 409
+    if not response.ok:
+        return api_error(response, "Erro ao salvar planilha.")
+
+    rows = response.json()
+    if not rows:
+        return jsonify({"error": "Planilha não encontrada."}), 404
+
+    saved = rows[0]
+    return jsonify(
+        {
+            "id": saved["id"],
+            "name": saved["name"],
+            "updated_at": saved["updated_at"],
+        }
+    )
 
 
 @app.delete("/api/workbooks/<int:workbook_id>")
 def delete_workbook(workbook_id: int) -> Any:
-    with get_connection() as connection:
-        cursor = connection.execute("DELETE FROM workbooks WHERE id = ?", (workbook_id,))
-        connection.commit()
+    try:
+        response = supabase_request(
+            "DELETE",
+            SUPABASE_TABLE,
+            params={"id": f"eq.{workbook_id}"},
+            prefer="return=representation",
+        )
+    except (RuntimeError, requests.RequestException) as error:
+        return jsonify({"error": str(error)}), 503
 
-    if cursor.rowcount == 0:
+    if not response.ok:
+        return api_error(response, "Erro ao excluir planilha.")
+
+    rows = response.json()
+    if not rows:
         return jsonify({"error": "Planilha não encontrada."}), 404
+
     return jsonify({"deleted": True})
 
 
@@ -163,8 +253,6 @@ def delete_workbook(workbook_id: int) -> Any:
 def request_too_large(_: Exception) -> Any:
     return jsonify({"error": "Requisição muito grande."}), 413
 
-
-init_database()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
