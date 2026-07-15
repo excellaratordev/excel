@@ -28,9 +28,15 @@ def supabase_headers(*, prefer: str | None = None) -> dict[str, str]:
 
     headers = {
         "apikey": SUPABASE_SECRET_KEY,
-        "Authorization": f"Bearer {SUPABASE_SECRET_KEY}",
         "Content-Type": "application/json",
     }
+
+    # As novas chaves sb_secret_ não são JWT e devem ser enviadas apenas
+    # no header apikey. A chave service_role legada é um JWT e também pode
+    # ser enviada como Bearer para manter compatibilidade.
+    if SUPABASE_SECRET_KEY.startswith("eyJ"):
+        headers["Authorization"] = f"Bearer {SUPABASE_SECRET_KEY}"
+
     if prefer:
         headers["Prefer"] = prefer
     return headers
