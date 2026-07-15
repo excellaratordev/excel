@@ -1,0 +1,46 @@
+name: Resize spreadsheet grid
+
+on:
+  push:
+    paths:
+      - .github/workflows/resize-grid.yml
+
+permissions:
+  contents: write
+
+jobs:
+  resize-grid:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update grid limits
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('static/js/app.js')
+          content = path.read_text(encoding='utf-8')
+
+          old_rows = 'const ROWS = 60;'
+          old_cols = 'const COLS = 26;'
+
+          if content.count(old_rows) != 1:
+              raise SystemExit(f'Expected exactly one occurrence of {old_rows!r}')
+          if content.count(old_cols) != 1:
+              raise SystemExit(f'Expected exactly one occurrence of {old_cols!r}')
+
+          content = content.replace(old_rows, 'const ROWS = 1000;', 1)
+          content = content.replace(old_cols, 'const COLS = 60;', 1)
+          path.write_text(content, encoding='utf-8')
+          PY
+
+      - name: Commit grid resize and remove temporary workflow
+        run: |
+          rm .github/workflows/resize-grid.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add static/js/app.js .github/workflows/resize-grid.yml
+          git commit -m "Increase spreadsheet grid to 1000 rows and 60 columns"
+          git push
