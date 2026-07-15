@@ -3,16 +3,23 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Super Excel — Arquivos</title>
+  <title>Super Excel — Projetos</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
 <body class="auth-pending">
   <header class="manager-topbar">
-    <div><strong>Super Excel</strong><span>Gerenciador de arquivos</span></div>
+    <div class="brand-block"><strong>Super Excel</strong><span>Projetos compartilhados</span></div>
+    <div class="project-switcher">
+      <label for="project-select">Projeto</label>
+      <select id="project-select" aria-label="Projeto atual"></select>
+      <span id="project-role" class="role-badge"></span>
+      <button id="new-project" type="button">Novo projeto</button>
+      <button id="rename-project" type="button">Renomear</button>
+    </div>
     <div class="actions">
-      <button id="new-folder">Nova pasta</button>
-      <button id="new-sheet" class="primary">Nova planilha</button>
+      <button id="new-folder" type="button">Nova pasta</button>
+      <button id="new-sheet" class="primary" type="button">Nova planilha</button>
       <div class="auth-user">
         <img class="auth-avatar" data-auth-avatar src="" alt="">
         <div class="auth-user-text"><strong data-auth-name>Conta Google</strong><span data-auth-email></span></div>
@@ -24,7 +31,7 @@
     <aside>
       <button class="nav active" data-view="files">📁 Arquivos</button>
       <button class="nav" data-view="variables">🔗 Variáveis externas</button>
-      <button class="nav" data-view="permissions">🔒 Permissões</button>
+      <button class="nav" data-view="members">👥 Membros do projeto</button>
     </aside>
     <section class="content">
       <p data-auth-error class="error-text"></p>
@@ -37,17 +44,29 @@
         <div id="items" class="items"></div>
       </div>
       <div id="variables-view" class="view">
-        <div class="section-head"><div><h2>Variáveis externas</h2><p>Valores reutilizáveis em integrações e fórmulas futuras.</p></div><button id="new-variable" class="primary">Nova variável</button></div>
+        <div class="section-head">
+          <div><h2>Variáveis externas</h2><p>Valores compartilhados por todos os membros deste projeto.</p></div>
+          <button id="new-variable" class="primary" type="button">Nova variável</button>
+        </div>
         <div id="variables-list" class="table-list"></div>
       </div>
-      <div id="permissions-view" class="view">
-        <div class="section-head"><div><h2>Permissões</h2><p>Defina quem pode visualizar, editar ou administrar pastas e planilhas.</p></div><button id="new-permission" class="primary">Nova permissão</button></div>
-        <div class="notice">As permissões são vinculadas ao e-mail da conta Google.</div>
-        <div id="permissions-list" class="table-list"></div>
+      <div id="members-view" class="view">
+        <div class="section-head">
+          <div><h2>Membros do projeto</h2><p>Convide pessoas pelo Gmail e defina o que cada uma pode fazer.</p></div>
+          <button id="new-member" class="primary" type="button">Adicionar membro</button>
+        </div>
+        <div class="notice"><strong>Colaboração:</strong> membros com acesso de edição podem abrir e alterar as mesmas planilhas. As mudanças são sincronizadas automaticamente e conflitos em células diferentes são mesclados.</div>
+        <div id="members-list" class="table-list"></div>
       </div>
     </section>
   </main>
-  <dialog id="form-dialog"><form method="dialog"><h3 id="dialog-title"></h3><div id="dialog-fields"></div><div class="dialog-actions"><button value="cancel">Cancelar</button><button id="dialog-save" value="default" class="primary">Salvar</button></div></form></dialog>
+  <dialog id="form-dialog">
+    <form method="dialog">
+      <h3 id="dialog-title"></h3>
+      <div id="dialog-fields"></div>
+      <div class="dialog-actions"><button value="cancel">Cancelar</button><button id="dialog-save" value="default" class="primary">Salvar</button></div>
+    </form>
+  </dialog>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager.js') }}"></script>
