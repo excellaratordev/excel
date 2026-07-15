@@ -29,7 +29,11 @@
     <section class="content">
       <p data-auth-error class="error-text"></p>
       <div id="files-view" class="view active">
-        <div class="breadcrumb"><button id="root-button">Início</button><span id="current-folder"></span></div>
+        <div class="breadcrumb">
+          <button id="root-button" title="Abra a raiz ou solte um item aqui">Início</button>
+          <span id="current-folder"></span>
+          <span class="drag-hint">Arraste planilhas e pastas para organizá-las</span>
+        </div>
         <div id="items" class="items"></div>
       </div>
       <div id="variables-view" class="view">
