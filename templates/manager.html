@@ -5,11 +5,20 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Super Excel — Arquivos</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
 </head>
-<body>
+<body class="auth-pending">
   <header class="manager-topbar">
     <div><strong>Super Excel</strong><span>Gerenciador de arquivos</span></div>
-    <div class="actions"><button id="new-folder">Nova pasta</button><button id="new-sheet" class="primary">Nova planilha</button></div>
+    <div class="actions">
+      <button id="new-folder">Nova pasta</button>
+      <button id="new-sheet" class="primary">Nova planilha</button>
+      <div class="auth-user">
+        <img class="auth-avatar" data-auth-avatar src="" alt="">
+        <div class="auth-user-text"><strong data-auth-name>Conta Google</strong><span data-auth-email></span></div>
+        <button class="auth-signout" type="button" data-auth-signout>Sair</button>
+      </div>
+    </div>
   </header>
   <main class="manager-layout">
     <aside>
@@ -18,6 +27,7 @@
       <button class="nav" data-view="permissions">🔒 Permissões</button>
     </aside>
     <section class="content">
+      <p data-auth-error class="error-text"></p>
       <div id="files-view" class="view active">
         <div class="breadcrumb"><button id="root-button">Início</button><span id="current-folder"></span></div>
         <div id="items" class="items"></div>
@@ -28,12 +38,14 @@
       </div>
       <div id="permissions-view" class="view">
         <div class="section-head"><div><h2>Permissões</h2><p>Defina quem pode visualizar, editar ou administrar pastas e planilhas.</p></div><button id="new-permission" class="primary">Nova permissão</button></div>
-        <div class="notice">As regras já são armazenadas no banco. A aplicação de bloqueio por usuário será ativada junto com o login.</div>
+        <div class="notice">As permissões são vinculadas ao e-mail da conta Google.</div>
         <div id="permissions-list" class="table-list"></div>
       </div>
     </section>
   </main>
   <dialog id="form-dialog"><form method="dialog"><h3 id="dialog-title"></h3><div id="dialog-fields"></div><div class="dialog-actions"><button value="cancel">Cancelar</button><button id="dialog-save" value="default" class="primary">Salvar</button></div></form></dialog>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager.js') }}"></script>
 </body>
 </html>
