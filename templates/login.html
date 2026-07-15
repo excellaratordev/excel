@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Acesse o Super Excel com sua conta Google.">
+  <title>Entrar — Super Excel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="login-brand"><span class="login-brand-mark">S</span><span>Super Excel</span></div>
+    <h1>Entre para continuar</h1>
+    <p>Acesse suas pastas, planilhas, variáveis e permissões usando uma conta Google.</p>
+    <button id="google-login" class="google-login-button" type="button">
+      <span class="google-mark" aria-hidden="true">G</span>
+      <span>Entrar com Google</span>
+    </button>
+    <p id="login-error" class="login-error" role="alert"></p>
+    <p class="login-footnote">Esta é a única forma de acesso disponível.</p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="{{ url_for('static', filename='js/login.js') }}"></script>
+</body>
+</html>
