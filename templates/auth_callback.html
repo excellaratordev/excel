@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Autenticando — Super Excel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body class="login-page">
+  <main class="login-card">
+    <div class="auth-loader" aria-hidden="true"></div>
+    <h1>Concluindo acesso</h1>
+    <p id="callback-status">Validando sua conta Google...</p>
+    <p id="callback-error" class="login-error" role="alert"></p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="{{ url_for('static', filename='js/auth-callback.js') }}"></script>
+</body>
+</html>
