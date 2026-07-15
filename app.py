@@ -80,6 +80,18 @@ def empty_workbook(name: str) -> dict[str, Any]:
     }
 
 
+def parse_nullable_id(value: Any, field_name: str) -> tuple[int | None, str | None]:
+    if value is None or value == "":
+        return None, None
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None, f"{field_name} inválido."
+    if parsed <= 0:
+        return None, f"{field_name} inválido."
+    return parsed, None
+
+
 def bearer_token() -> str | None:
     authorization = request.headers.get("Authorization", "")
     scheme, _, token = authorization.partition(" ")
@@ -213,15 +225,46 @@ def current_user():
 
 @app.get("/api/manager")
 def manager_data():
-    folder_id = request.args.get("folder_id")
-    folder_filter = "is.null" if not folder_id else f"eq.{int(folder_id)}"
-    folders = db("GET", "folders", params={"select": "id,name,parent_id,updated_at", "parent_id": folder_filter, "order": "name.asc"})
-    books = db("GET", "workbooks", params={"select": "id,name,folder_id,created_at,updated_at", "folder_id": folder_filter, "order": "name.asc"})
+    folder_id, folder_error = parse_nullable_id(request.args.get("folder_id"), "Pasta")
+    if folder_error:
+        return jsonify({"error": folder_error}), 400
+
+    current_folder = None
+    if folder_id is not None:
+        current_response = db(
+            "GET",
+            "folders",
+            params={"select": "id,name,parent_id", "id": f"eq.{folder_id}", "limit": "1"},
+        )
+        if not current_response.ok:
+            return api_error(current_response, "Erro ao abrir pasta")
+        current_rows = current_response.json()
+        if not current_rows:
+            return jsonify({"error": "Pasta não encontrada."}), 404
+        current_folder = current_rows[0]
+
+    folder_filter = "is.null" if folder_id is None else f"eq.{folder_id}"
+    folders = db(
+        "GET",
+        "folders",
+        params={"select": "id,name,parent_id,updated_at", "parent_id": folder_filter, "order": "name.asc"},
+    )
+    books = db(
+        "GET",
+        "workbooks",
+        params={"select": "id,name,folder_id,created_at,updated_at", "folder_id": folder_filter, "order": "name.asc"},
+    )
     if not folders.ok:
         return api_error(folders, "Erro ao listar pastas")
     if not books.ok:
         return api_error(books, "Erro ao listar planilhas")
-    return jsonify({"folders": folders.json(), "workbooks": books.json()})
+    return jsonify(
+        {
+            "current_folder": current_folder,
+            "folders": folders.json(),
+            "workbooks": books.json(),
+        }
+    )
 
 
 @app.post("/api/folders")
@@ -230,11 +273,60 @@ def create_folder():
     name = str(body.get("name", "")).strip()
     if not name:
         return jsonify({"error": "Informe o nome da pasta."}), 400
-    record = {"name": name, "parent_id": body.get("parent_id")}
+    parent_id, parent_error = parse_nullable_id(body.get("parent_id"), "Pasta de destino")
+    if parent_error:
+        return jsonify({"error": parent_error}), 400
+    record = {"name": name, "parent_id": parent_id}
     response = db("POST", "folders", payload=record, prefer="return=representation")
     if response.status_code == 409:
-        return jsonify({"error": "Já existe uma pasta com esse nome."}), 409
+        return jsonify({"error": "Já existe uma pasta com esse nome neste local."}), 409
     return jsonify(response.json()[0]) if response.ok else api_error(response, "Erro ao criar pasta")
+
+
+@app.patch("/api/folders/<int:folder_id>/move")
+def move_folder(folder_id: int):
+    target_parent_id, target_error = parse_nullable_id(json_body().get("parent_id"), "Pasta de destino")
+    if target_error:
+        return jsonify({"error": target_error}), 400
+    if target_parent_id == folder_id:
+        return jsonify({"error": "Uma pasta não pode ser movida para dentro dela mesma."}), 400
+
+    folders_response = db("GET", "folders", params={"select": "id,name,parent_id"})
+    if not folders_response.ok:
+        return api_error(folders_response, "Erro ao validar as pastas")
+
+    folders = {int(row["id"]): row for row in folders_response.json()}
+    if folder_id not in folders:
+        return jsonify({"error": "Pasta não encontrada."}), 404
+    if target_parent_id is not None and target_parent_id not in folders:
+        return jsonify({"error": "Pasta de destino não encontrada."}), 404
+
+    ancestor_id = target_parent_id
+    visited: set[int] = set()
+    while ancestor_id is not None:
+        if ancestor_id == folder_id:
+            return jsonify({"error": "Uma pasta não pode ser movida para dentro de uma de suas subpastas."}), 400
+        if ancestor_id in visited:
+            return jsonify({"error": "A estrutura de pastas contém um ciclo inválido."}), 409
+        visited.add(ancestor_id)
+        ancestor = folders.get(ancestor_id)
+        ancestor_id = int(ancestor["parent_id"]) if ancestor and ancestor.get("parent_id") is not None else None
+
+    response = db(
+        "PATCH",
+        "folders",
+        params={"id": f"eq.{folder_id}"},
+        payload={"parent_id": target_parent_id},
+        prefer="return=representation",
+    )
+    if response.status_code == 409:
+        return jsonify({"error": "Já existe uma pasta com esse nome no destino."}), 409
+    if not response.ok:
+        return api_error(response, "Erro ao mover pasta")
+    rows = response.json()
+    if not rows:
+        return jsonify({"error": "Pasta não encontrada."}), 404
+    return jsonify(rows[0])
 
 
 @app.delete("/api/folders/<int:folder_id>")
@@ -275,7 +367,10 @@ def save_workbook():
         return jsonify({"error": "A planilha excede 5 MB."}), 400
     record = {"name": name, "payload": payload}
     if "folder_id" in body:
-        record["folder_id"] = body.get("folder_id")
+        folder_id, folder_error = parse_nullable_id(body.get("folder_id"), "Pasta")
+        if folder_error:
+            return jsonify({"error": folder_error}), 400
+        record["folder_id"] = folder_id
     workbook_id = body.get("id")
     if workbook_id is None:
         response = db("POST", "workbooks", payload=record, prefer="return=representation")
@@ -291,8 +386,36 @@ def save_workbook():
 
 @app.patch("/api/workbooks/<int:workbook_id>/move")
 def move_workbook(workbook_id: int):
-    response = db("PATCH", "workbooks", params={"id": f"eq.{workbook_id}"}, payload={"folder_id": json_body().get("folder_id")}, prefer="return=representation")
-    return jsonify(response.json()[0]) if response.ok and response.json() else api_error(response, "Erro ao mover planilha")
+    target_folder_id, target_error = parse_nullable_id(json_body().get("folder_id"), "Pasta de destino")
+    if target_error:
+        return jsonify({"error": target_error}), 400
+
+    if target_folder_id is not None:
+        target = db(
+            "GET",
+            "folders",
+            params={"select": "id", "id": f"eq.{target_folder_id}", "limit": "1"},
+        )
+        if not target.ok:
+            return api_error(target, "Erro ao validar a pasta de destino")
+        if not target.json():
+            return jsonify({"error": "Pasta de destino não encontrada."}), 404
+
+    response = db(
+        "PATCH",
+        "workbooks",
+        params={"id": f"eq.{workbook_id}"},
+        payload={"folder_id": target_folder_id},
+        prefer="return=representation",
+    )
+    if response.status_code == 409:
+        return jsonify({"error": "Já existe uma planilha com esse nome no destino."}), 409
+    if not response.ok:
+        return api_error(response, "Erro ao mover planilha")
+    rows = response.json()
+    if not rows:
+        return jsonify({"error": "Planilha não encontrada."}), 404
+    return jsonify(rows[0])
 
 
 @app.delete("/api/workbooks/<int:workbook_id>")
