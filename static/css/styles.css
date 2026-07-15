@@ -1,0 +1,167 @@
+:root {
+  --green: #107c41;
+  --green-dark: #0b5f31;
+  --green-soft: #e9f4ee;
+  --border: #d8dde3;
+  --header: #f3f5f7;
+  --text: #202124;
+  --muted: #68707a;
+  --danger: #b42318;
+  --cell-width: 118px;
+  --row-header-width: 48px;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  color: var(--text);
+  background: #fff;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  overflow: hidden;
+}
+button, input { font: inherit; }
+button, .file-button {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  padding: 7px 11px;
+  color: var(--text);
+  cursor: pointer;
+}
+button:hover, .file-button:hover { background: #f7f8fa; }
+button.primary { background: var(--green); border-color: var(--green); color: white; }
+button.primary:hover { background: var(--green-dark); }
+
+.topbar {
+  height: 64px;
+  display: grid;
+  grid-template-columns: auto minmax(180px, 420px) 1fr;
+  align-items: center;
+  gap: 22px;
+  padding: 0 16px;
+  background: var(--green-dark);
+  color: white;
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 180px; }
+.brand-mark {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: white;
+  color: var(--green-dark);
+  font-weight: 800;
+}
+.brand strong, .brand small { display: block; }
+.brand small { opacity: .75; font-size: 11px; }
+.workbook-name {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.25);
+  border-radius: 6px;
+  background: rgba(255,255,255,.1);
+  color: white;
+  padding: 8px 10px;
+  outline: none;
+}
+.workbook-name:focus { background: white; color: var(--text); }
+.top-actions { justify-self: end; display: flex; gap: 8px; }
+.top-actions button { border-color: rgba(255,255,255,.3); background: rgba(255,255,255,.12); color: white; }
+.top-actions button:hover { background: rgba(255,255,255,.22); }
+.top-actions button.primary { background: white; color: var(--green-dark); }
+
+main { height: calc(100vh - 64px); display: grid; grid-template-rows: 46px 42px minmax(0, 1fr) 30px; }
+.toolbar, .formula-row, .statusbar { border-bottom: 1px solid var(--border); display: flex; align-items: center; }
+.toolbar { gap: 7px; padding: 6px 10px; background: #fff; }
+.toolbar .separator { width: 1px; height: 24px; background: var(--border); margin: 0 3px; }
+.formula-row { background: #fff; }
+.cell-address { width: 92px; padding: 0 12px; font-weight: 600; }
+.fx { width: 38px; color: var(--green); font-family: Georgia, serif; font-style: italic; font-weight: 700; }
+#formula-input { flex: 1; height: 100%; border: 0; border-left: 1px solid var(--border); padding: 0 12px; outline: none; }
+.sheet-shell { min-height: 0; overflow: auto; background: #fff; }
+.spreadsheet { min-width: max-content; }
+.sheet-table { border-collapse: separate; border-spacing: 0; table-layout: fixed; }
+.sheet-table th, .sheet-table td { border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.sheet-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  width: var(--cell-width);
+  min-width: var(--cell-width);
+  height: 28px;
+  background: var(--header);
+  color: #4f5862;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+}
+.sheet-table .corner {
+  left: 0;
+  z-index: 5;
+  width: var(--row-header-width);
+  min-width: var(--row-header-width);
+}
+.row-header {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: var(--row-header-width);
+  min-width: var(--row-header-width);
+  background: var(--header);
+  color: #4f5862;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+}
+.cell {
+  width: var(--cell-width);
+  min-width: var(--cell-width);
+  max-width: var(--cell-width);
+  height: 26px;
+  padding: 3px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+  font-size: 13px;
+  background: white;
+  cursor: cell;
+}
+.cell.selected { position: relative; overflow: visible; box-shadow: inset 0 0 0 2px var(--green); z-index: 1; }
+.cell.selected::after { content: ''; position: absolute; right: -3px; bottom: -3px; width: 6px; height: 6px; background: var(--green); }
+.cell.editing { white-space: pre; overflow: visible; box-shadow: inset 0 0 0 2px var(--green); }
+.cell.formula-cell { color: #0b5f31; }
+.cell.error-cell { color: var(--danger); }
+.statusbar { justify-content: space-between; gap: 20px; padding: 0 10px; border-top: 1px solid var(--border); border-bottom: 0; color: var(--muted); font-size: 12px; }
+.statusbar .error { color: var(--danger); font-weight: 600; }
+
+.dialog { width: min(920px, calc(100vw - 32px)); max-height: 82vh; border: 0; border-radius: 12px; padding: 0; box-shadow: 0 24px 70px rgba(0,0,0,.25); }
+.dialog::backdrop { background: rgba(20,28,36,.48); }
+.dialog-header { position: sticky; top: 0; z-index: 2; display: flex; justify-content: space-between; align-items: start; gap: 20px; padding: 20px; border-bottom: 1px solid var(--border); background: white; }
+.dialog-header h2 { margin: 0 0 4px; font-size: 20px; }
+.dialog-header p { margin: 0; color: var(--muted); }
+.icon-button { border: 0; font-size: 24px; line-height: 1; padding: 2px 8px; }
+.functions-list { padding: 14px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.formula-card { display: grid; grid-template-columns: 36px 1fr auto; align-items: start; gap: 10px; padding: 12px; border: 1px solid var(--border); border-radius: 9px; }
+.formula-card p { margin: 3px 0 7px; color: var(--muted); font-size: 13px; }
+.formula-card code { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; color: var(--green-dark); }
+.formula-number { color: var(--green); font-weight: 700; }
+.workbooks-list { padding: 14px; }
+.workbook-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px; border-bottom: 1px solid var(--border); }
+.workbook-item strong, .workbook-item small { display: block; }
+.workbook-item small { margin-top: 4px; color: var(--muted); }
+.workbook-item > div:last-child { display: flex; gap: 7px; }
+.muted { color: var(--muted); }
+.error-text { color: var(--danger); }
+
+@media (max-width: 760px) {
+  .topbar { height: auto; min-height: 64px; grid-template-columns: 1fr auto; gap: 8px; padding: 9px; }
+  .workbook-name { grid-column: 1 / -1; grid-row: 2; }
+  .brand small { display: none; }
+  .top-actions button:not(.primary) { display: none; }
+  main { height: calc(100vh - 105px); }
+  .toolbar { overflow-x: auto; }
+  .functions-list { grid-template-columns: 1fr; }
+  .statusbar span:last-child { display: none; }
+}
