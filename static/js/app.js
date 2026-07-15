@@ -1,8 +1,8 @@
 (() => {
   'use strict';
 
-  const ROWS = 60;
-  const COLS = 26;
+  const ROWS = 1000;
+  const COLS = 60;
   const AUTOSAVE = 'super-excel-autosave-v1';
 
   const F = [
