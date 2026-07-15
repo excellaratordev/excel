@@ -5,20 +5,27 @@ import os
 from typing import Any
 
 import requests
-from flask import Flask, jsonify, redirect, render_template, request, url_for
+from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_SECRET_KEY = os.getenv("SUPABASE_SECRET_KEY", "")
+SUPABASE_PUBLISHABLE_KEY = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
 REQUEST_TIMEOUT = float(os.getenv("SUPABASE_TIMEOUT", "15"))
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_WORKBOOK_BYTES + 512 * 1024
 
+PUBLIC_API_PATHS = {"/api/health", "/api/auth/config"}
+
 
 def configured() -> bool:
     return bool(SUPABASE_URL and SUPABASE_SECRET_KEY)
+
+
+def auth_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY)
 
 
 def headers(prefer: str | None = None) -> dict[str, str]:
@@ -32,7 +39,14 @@ def headers(prefer: str | None = None) -> dict[str, str]:
     return result
 
 
-def db(method: str, table: str, *, params: dict[str, str] | None = None, payload: Any = None, prefer: str | None = None) -> requests.Response:
+def db(
+    method: str,
+    table: str,
+    *,
+    params: dict[str, str] | None = None,
+    payload: Any = None,
+    prefer: str | None = None,
+) -> requests.Response:
     return requests.request(
         method,
         f"{SUPABASE_URL}/rest/v1/{table}",
@@ -57,10 +71,94 @@ def json_body() -> dict[str, Any]:
 
 
 def empty_workbook(name: str) -> dict[str, Any]:
-    return {"version": 1, "name": name, "rows": 60, "cols": 26, "cells": [[None] * 26 for _ in range(60)]}
+    return {
+        "version": 1,
+        "name": name,
+        "rows": 60,
+        "cols": 26,
+        "cells": [[None] * 26 for _ in range(60)],
+    }
+
+
+def bearer_token() -> str | None:
+    authorization = request.headers.get("Authorization", "")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        return None
+    return token.strip()
+
+
+def google_provider(user: dict[str, Any]) -> bool:
+    app_metadata = user.get("app_metadata") or {}
+    provider = str(app_metadata.get("provider", "")).lower()
+    providers = {str(item).lower() for item in app_metadata.get("providers") or []}
+    identities = {
+        str(identity.get("provider", "")).lower()
+        for identity in user.get("identities") or []
+        if isinstance(identity, dict)
+    }
+    return provider == "google" or "google" in providers or "google" in identities
+
+
+def verify_user_token(token: str) -> tuple[dict[str, Any] | None, tuple[Any, int] | None]:
+    if not auth_configured():
+        return None, (jsonify({"error": "Supabase Auth não configurado no servidor."}), 503)
+
+    try:
+        response = requests.get(
+            f"{SUPABASE_URL}/auth/v1/user",
+            headers={
+                "apikey": SUPABASE_PUBLISHABLE_KEY,
+                "Authorization": f"Bearer {token}",
+            },
+            timeout=REQUEST_TIMEOUT,
+        )
+    except requests.RequestException:
+        return None, (jsonify({"error": "Não foi possível validar a sessão."}), 503)
+
+    if not response.ok:
+        return None, (jsonify({"error": "Sessão inválida ou expirada."}), 401)
+
+    user = response.json()
+    if not google_provider(user):
+        return None, (jsonify({"error": "Acesso permitido somente com uma conta Google."}), 403)
+
+    return user, None
+
+
+@app.before_request
+def protect_api_routes():
+    if not request.path.startswith("/api/") or request.path in PUBLIC_API_PATHS:
+        return None
+
+    token = bearer_token()
+    if not token:
+        return jsonify({"error": "Faça login com o Google para continuar."}), 401
+
+    user, error = verify_user_token(token)
+    if error:
+        return error
+
+    g.auth_user = user
+    return None
 
 
 @app.get("/")
+def root_page():
+    return redirect(url_for("login_page"))
+
+
+@app.get("/login")
+def login_page():
+    return render_template("login.html")
+
+
+@app.get("/auth/callback")
+def auth_callback_page():
+    return render_template("auth_callback.html")
+
+
+@app.get("/files")
 def manager_page():
     return render_template("manager.html")
 
@@ -73,13 +171,21 @@ def sheet_redirect():
 
 @app.get("/sheet/<int:workbook_id>")
 def sheet_page(workbook_id: int):
-    response = db("GET", "workbooks", params={"select": "id,name,payload", "id": f"eq.{workbook_id}", "limit": "1"})
-    if not response.ok or not response.json():
-        return redirect(url_for("manager_page"))
-    workbook = response.json()[0]
-    payload = workbook["payload"]
-    payload["name"] = workbook["name"]
-    return render_template("index.html", preload_workbook=payload, preload_workbook_id=workbook_id)
+    # O conteúdo da planilha é carregado pela API autenticada no navegador.
+    return render_template("index.html", preload_workbook_id=workbook_id)
+
+
+@app.get("/api/auth/config")
+def auth_config():
+    if not auth_configured():
+        return jsonify({"error": "SUPABASE_PUBLISHABLE_KEY não foi configurada."}), 503
+    return jsonify(
+        {
+            "supabase_url": SUPABASE_URL,
+            "publishable_key": SUPABASE_PUBLISHABLE_KEY,
+            "provider": "google",
+        }
+    )
 
 
 @app.get("/api/health")
@@ -88,6 +194,21 @@ def health():
         return jsonify({"status": "error", "configured": False}), 503
     response = db("GET", "workbooks", params={"select": "id", "limit": "1"})
     return (jsonify({"status": "ok", "database": "supabase"}), 200) if response.ok else api_error(response, "Falha no Supabase")
+
+
+@app.get("/api/me")
+def current_user():
+    user = g.auth_user
+    metadata = user.get("user_metadata") or {}
+    return jsonify(
+        {
+            "id": user.get("id"),
+            "email": user.get("email"),
+            "name": metadata.get("full_name") or metadata.get("name") or user.get("email"),
+            "avatar_url": metadata.get("avatar_url") or metadata.get("picture"),
+            "provider": "google",
+        }
+    )
 
 
 @app.get("/api/manager")
