@@ -3,6 +3,7 @@
 
   const root = document.documentElement;
   const workbookId = Number(root.dataset.workbookId || 0);
+  const legacyCollaboration = new URLSearchParams(window.location.search).get('collab') === 'v2';
   const DEFAULT_ROWS = 60;
   const DEFAULT_COLS = 26;
   const SOFT_ROWS = 250;
@@ -99,6 +100,12 @@
     window.SuperExcelInitialWorkbook = workbook;
     window.SuperExcelInitialMeta = meta;
     window.SuperExcelGridSize = Object.freeze(dimensionsFromPayload(workbook));
+
+    if (legacyCollaboration) {
+      await loadScript('/static/js/app-v2.js');
+      await loadScript('/static/js/sheet-collaboration-v2.js');
+      return;
+    }
 
     await loadScript('/static/js/collab-operation.js');
     await loadScript('/static/js/collab-operation-store.js');
