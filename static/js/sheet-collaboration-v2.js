@@ -25,15 +25,21 @@
   let saving = false;
   let saveTimer = null;
   let pollTimer = null;
-  let heartbeatTimer = null;
-  let pendingRemote = null;
+  let pendingRemote = false;
   let onlineCount = 1;
   let lastRemoteActivity = 0;
   let pendingName = null;
+  let realtimeChannel = null;
+  let realtimeConnected = false;
+  let realtimeQueue = Promise.resolve();
   const pendingChanges = new Map();
 
+  function currentUser() {
+    return window.SuperExcelAuth.session?.user || {};
+  }
+
   function currentEmail() {
-    return window.SuperExcelAuth.session?.user?.email?.toLowerCase() || '';
+    return currentUser().email?.toLowerCase() || '';
   }
 
   function cellKey(change) {
@@ -49,7 +55,12 @@
 
   function renderPresence(list) {
     collaborators.innerHTML = '';
-    const people = Array.isArray(list) ? list : [];
+    const uniquePeople = new Map();
+    for (const person of Array.isArray(list) ? list : []) {
+      const key = String(person.user_email || person.user_id || person.user_name || crypto.randomUUID?.() || Math.random()).toLowerCase();
+      if (!uniquePeople.has(key)) uniquePeople.set(key, person);
+    }
+    const people = [...uniquePeople.values()];
     onlineCount = Math.max(1, people.length);
     for (const person of people.slice(0, 4)) {
       const name = person.user_name || person.user_email || 'Usuário';
@@ -148,19 +159,18 @@
       const response = await fetch(`/api/workbooks/${workbookId}/patch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ changes: batch, name, base_revision: revision }),
+        body: JSON.stringify({ changes: batch, name, base_revision: baseRevision }),
         keepalive: Boolean(options.keepalive),
       });
       const output = await response.json();
       if (!response.ok) throw new Error(output.error || 'Erro ao sincronizar alterações.');
       const confirmedRevision = Number(output.revision || baseRevision + 1);
       projectId = output.project_id || projectId;
-      catchUpAfterSave = confirmedRevision > baseRevision;
+      catchUpAfterSave = confirmedRevision > revision;
       if (catchUpAfterSave) {
         setCollaboration('Confirmando...', `Revisão ${confirmedRevision}`, 'is-saving');
         status.textContent = 'Alterações enviadas; recebendo a versão consolidada...';
       } else {
-        revision = confirmedRevision;
         setCollaboration('Sincronizado', `Revisão ${revision}`, 'is-synced');
         status.textContent = `Sincronizado — revisão ${revision}`;
       }
@@ -210,13 +220,15 @@
 
     const events = Array.isArray(output.events) ? output.events : [];
     for (const event of events) {
+      const eventRevision = Number(event.revision || 0);
+      if (eventRevision <= revision) continue;
       const changes = filterRemoteChanges(event.changes);
       const result = app.applyRemoteChanges(changes, { name: event.name });
       if (result.requiresReload) {
         await fetchSnapshot();
         return;
       }
-      revision = Math.max(revision, Number(event.revision || 0));
+      revision = eventRevision;
       if (event.user_email && event.user_email !== currentEmail()) {
         lastRemoteActivity = Date.now();
         status.textContent = `Alterado por ${event.user_email}`;
@@ -233,14 +245,40 @@
     const output = await response.json();
     if (!response.ok) throw new Error(output.error || 'Erro ao verificar alterações externas.');
     if (userIsActivelyEditing()) {
-      pendingRemote = output;
+      pendingRemote = true;
       setCollaboration('Outra pessoa editou', 'Aplicando ao terminar a célula', 'is-saving');
       return;
     }
     await applyRemotePayload(output);
   }
 
+  async function handleRealtimeRecord(record) {
+    const eventRevision = Number(record?.revision || 0);
+    if (!eventRevision || eventRevision <= revision) return;
+    if (userIsActivelyEditing()) {
+      pendingRemote = true;
+      setCollaboration('Outra pessoa editou', 'Aplicando ao terminar a célula', 'is-saving');
+      return;
+    }
+    if (eventRevision !== revision + 1) {
+      await checkRemote();
+      return;
+    }
+    await applyRemotePayload({
+      mode: 'patches',
+      revision: eventRevision,
+      events: [{
+        revision: eventRevision,
+        user_email: record.user_email,
+        changes: Array.isArray(record.changes) ? record.changes : [],
+        name: record.workbook_name,
+        created_at: record.created_at,
+      }],
+    });
+  }
+
   function nextPollDelay() {
+    if (realtimeConnected) return document.hidden ? 30000 : 10000;
     if (document.hidden) return 6000;
     if (onlineCount > 1 || Date.now() - lastRemoteActivity < 12000) return 700;
     return 1600;
@@ -249,13 +287,8 @@
   async function pollLoop() {
     clearTimeout(pollTimer);
     try {
-      if (pendingRemote && !userIsActivelyEditing()) {
-        const output = pendingRemote;
-        pendingRemote = null;
-        await applyRemotePayload(output);
-      } else {
-        await checkRemote();
-      }
+      if (pendingRemote && !userIsActivelyEditing()) pendingRemote = false;
+      await checkRemote();
     } catch (error) {
       handleError(error);
     } finally {
@@ -263,21 +296,55 @@
     }
   }
 
-  async function heartbeat() {
-    if (!workbookId || document.hidden || !navigator.onLine) return;
-    const response = await fetch(`/api/workbooks/${workbookId}/presence`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
-    });
-    const output = await response.json();
-    if (!response.ok) throw new Error(output.error || 'Erro ao atualizar presença.');
-    renderPresence(output.online || []);
+  function presencePayloads() {
+    if (!realtimeChannel) return [];
+    const state = realtimeChannel.presenceState() || {};
+    return Object.values(state).flatMap(value => Array.isArray(value) ? value : []);
   }
 
-  function heartbeatLoop() {
-    clearTimeout(heartbeatTimer);
-    heartbeat().catch(console.error).finally(() => {
-      heartbeatTimer = window.setTimeout(heartbeatLoop, document.hidden ? 30000 : 15000);
-    });
+  async function setupRealtime() {
+    const client = window.SuperExcelAuth.client;
+    const user = currentUser();
+    if (!client || !workbookId || !user.id) return;
+
+    const metadata = user.user_metadata || {};
+    const tabId = crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`;
+    realtimeChannel = client
+      .channel(`superexcel-workbook-${workbookId}`, {
+        config: { presence: { key: `${user.id}:${tabId}` } },
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'workbook_changes',
+          filter: `workbook_id=eq.${workbookId}`,
+        },
+        payload => {
+          realtimeQueue = realtimeQueue
+            .then(() => handleRealtimeRecord(payload.new))
+            .catch(handleError);
+        },
+      )
+      .on('presence', { event: 'sync' }, () => renderPresence(presencePayloads()))
+      .subscribe(async connectionStatus => {
+        if (connectionStatus === 'SUBSCRIBED') {
+          realtimeConnected = true;
+          await realtimeChannel.track({
+            user_id: user.id,
+            user_email: user.email || '',
+            user_name: metadata.full_name || metadata.name || user.email || 'Usuário',
+            avatar_url: metadata.avatar_url || metadata.picture || '',
+            online_at: new Date().toISOString(),
+          });
+          setCollaboration('Ao vivo', `${onlineCount} pessoa(s) online`, 'is-synced');
+          checkRemote().catch(handleError);
+        } else if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(connectionStatus)) {
+          realtimeConnected = false;
+          setCollaboration('Reconectando...', 'Usando sincronização de segurança', 'is-saving');
+        }
+      });
   }
 
   window.addEventListener('superexcel:changes', event => queueChanges(event.detail?.changes));
@@ -316,10 +383,7 @@
   }, true);
 
   document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) {
-      checkRemote().catch(handleError);
-      heartbeat().catch(console.error);
-    }
+    if (!document.hidden) checkRemote().catch(handleError);
   });
 
   window.addEventListener('online', () => {
@@ -329,24 +393,27 @@
   });
 
   window.addEventListener('offline', () => {
+    realtimeConnected = false;
     setCollaboration('Sem conexão', 'As alterações ficarão no navegador', 'is-error');
   });
 
   window.addEventListener('pagehide', () => {
     app.flushLocal();
     if (pendingChanges.size || pendingName) flushSave({ keepalive: true }).catch(() => {});
-    if (workbookId) fetch(`/api/workbooks/${workbookId}/presence`, { method: 'DELETE', keepalive: true }).catch(() => {});
+    if (realtimeChannel) {
+      realtimeChannel.untrack().catch(() => {});
+      window.SuperExcelAuth.client?.removeChannel(realtimeChannel).catch(() => {});
+    }
   });
 
   async function initialize() {
     await window.SuperExcelAuth.ready;
     if (role === 'viewer') enableReadOnly();
     document.body.classList.remove('sheet-loading');
-    setCollaboration('Sincronizado', `Revisão ${revision}`, 'is-synced');
+    setCollaboration('Conectando ao vivo...', `Revisão ${revision}`, 'is-saving');
     if (workbookId) {
-      await heartbeat();
+      await setupRealtime();
       pollLoop();
-      heartbeatLoop();
     }
   }
 
