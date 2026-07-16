@@ -52,10 +52,13 @@
       </div>
       <div id="members-view" class="view">
         <div class="section-head">
-          <div><h2>Membros do projeto</h2><p>Convide pessoas pelo Gmail e defina o que cada uma pode fazer.</p></div>
-          <button id="new-member" class="primary" type="button">Adicionar membro</button>
+          <div><h2>Membros do projeto</h2><p>Convide uma pessoa por Gmail ou gere um link pronto para copiar.</p></div>
+          <div class="section-actions">
+            <button id="new-invite" type="button">Copiar link de convite</button>
+            <button id="new-member" class="primary" type="button">Adicionar por Gmail</button>
+          </div>
         </div>
-        <div class="notice"><strong>Colaboração:</strong> membros com acesso de edição podem abrir e alterar as mesmas planilhas. As mudanças são sincronizadas automaticamente e conflitos em células diferentes são mesclados.</div>
+        <div class="notice"><strong>Link de convite:</strong> abre o login do Super Excel e adiciona automaticamente a primeira conta Google que o utilizar. O link é de uso único e expira.</div>
         <div id="members-list" class="table-list"></div>
       </div>
     </section>
