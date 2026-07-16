@@ -13,6 +13,7 @@ from backend import (
     db,
     protect_api_routes,
 )
+from collaboration_routes import collaboration_api
 from files_routes import files_api
 from projects_routes import projects_api
 from workbook_routes import workbooks_api
@@ -26,6 +27,7 @@ app.before_request(protect_api_routes)
 app.register_blueprint(projects_api)
 app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
+app.register_blueprint(collaboration_api)
 
 
 @app.get("/")
