@@ -43,6 +43,11 @@ def auth_callback_page():
     return render_template("auth_callback.html")
 
 
+@app.get("/invite/<code>")
+def invite_page(code: str):
+    return render_template("invite.html", invite_code=code)
+
+
 @app.get("/files")
 def manager_page():
     return render_template("manager.html")
