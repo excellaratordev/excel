@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 
 import backend
+import workbook_routes
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from backend import (
@@ -22,7 +23,13 @@ from workbook_routes import workbooks_api
 
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
 
+
+def compact_empty_workbook(name: str) -> dict:
+    return {"version": 1, "name": name, "rows": 60, "cols": 26, "cells": []}
+
+
 install_performance_cache(backend)
+workbook_routes.empty_workbook = compact_empty_workbook
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
