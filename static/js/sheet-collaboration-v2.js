@@ -139,6 +139,8 @@
     const name = pendingName;
     pendingChanges.clear();
     pendingName = null;
+    const baseRevision = revision;
+    let catchUpAfterSave = false;
     saving = true;
     setCollaboration('Salvando...', `${batch.length} célula(s)`, 'is-saving');
 
@@ -151,16 +153,24 @@
       });
       const output = await response.json();
       if (!response.ok) throw new Error(output.error || 'Erro ao sincronizar alterações.');
-      revision = Number(output.revision || revision + 1);
+      const confirmedRevision = Number(output.revision || baseRevision + 1);
       projectId = output.project_id || projectId;
-      setCollaboration('Sincronizado', `Revisão ${revision}`, 'is-synced');
+      catchUpAfterSave = confirmedRevision > baseRevision;
+      if (catchUpAfterSave) {
+        setCollaboration('Confirmando...', `Revisão ${confirmedRevision}`, 'is-saving');
+        status.textContent = 'Alterações enviadas; recebendo a versão consolidada...';
+      } else {
+        revision = confirmedRevision;
+        setCollaboration('Sincronizado', `Revisão ${revision}`, 'is-synced');
+        status.textContent = `Sincronizado — revisão ${revision}`;
+      }
       status.classList.remove('error');
-      status.textContent = `Sincronizado — revisão ${revision}`;
     } catch (error) {
       restoreBatch(batch, name);
       throw error;
     } finally {
       saving = false;
+      if (catchUpAfterSave) window.setTimeout(() => checkRemote().catch(handleError), 0);
       if (pendingChanges.size || pendingName) scheduleSave(80);
     }
   }
