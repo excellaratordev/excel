@@ -40,10 +40,16 @@
     });
   }
 
+  function clone(value) {
+    return typeof structuredClone === 'function'
+      ? structuredClone(value)
+      : JSON.parse(JSON.stringify(value));
+  }
+
   async function put(operation) {
     const database = await openDatabase();
     if (!database) {
-      fallback.set(operation.op_id, structuredClone ? structuredClone(operation) : JSON.parse(JSON.stringify(operation)));
+      fallback.set(operation.op_id, clone(operation));
       return operation;
     }
     const transaction = database.transaction(STORE_NAME, 'readwrite');
