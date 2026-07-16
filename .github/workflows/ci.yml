@@ -1,0 +1,41 @@
+name: Super Excel CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest
+
+      - name: Validate Python syntax
+        run: python -m compileall -q app.py backend.py projects_routes.py files_routes.py workbook_routes.py collaboration_routes.py performance_cache.py
+
+      - name: Run backend tests
+        run: pytest -q
+
+      - name: Validate collaboration JavaScript syntax
+        run: |
+          node --check static/js/collab-operation.js
+          node --check static/js/collab-operation-store.js
+          node --check static/js/sheet-bootstrap.js
+          node --check static/js/app-v2.js
+          node --check static/js/sheet-collaboration-v3.js
