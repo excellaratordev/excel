@@ -4,6 +4,7 @@ from typing import Any
 
 import app as app_module
 import backend
+import collaboration_routes
 import projects_routes
 import workbook_routes
 from app import app
@@ -122,3 +123,91 @@ def test_rejects_stale_workbook_revision(monkeypatch):
     assert body["conflict"] is True
     assert body["current"]["revision"] == 4
     assert body["current"]["data"]["cells"] == [[100]]
+
+
+def test_applies_idempotent_operation(monkeypatch):
+    authorize(monkeypatch)
+    workbook = {
+        "id": 15,
+        "name": "Compartilhada",
+        "project_id": 4,
+        "folder_id": None,
+        "revision": 8,
+    }
+    monkeypatch.setattr(
+        collaboration_routes,
+        "get_workbook",
+        lambda workbook_id, include_payload=False: (workbook.copy(), FakeResponse(200, [workbook.copy()])),
+    )
+    monkeypatch.setattr(
+        collaboration_routes,
+        "require_project",
+        lambda project_id, minimum_role="viewer": ({"id": project_id}, "editor", None),
+    )
+
+    def fake_db(method, table, **kwargs):
+        assert method == "POST"
+        assert table == "rpc/apply_workbook_operation"
+        payload = kwargs["payload"]
+        assert payload["p_op_id"] == "8f0fe1ce-b32f-4a58-a4c1-8da7f5f3db4e"
+        assert payload["p_changes"] == [{"row": 2, "col": 1, "value": 450}]
+        return FakeResponse(200, [{
+            "workbook_id": 15,
+            "op_id": payload["p_op_id"],
+            "revision": 9,
+            "duplicate": False,
+        }])
+
+    monkeypatch.setattr(collaboration_routes, "db", fake_db)
+
+    response = app.test_client().post(
+        "/api/workbooks/15/operations",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "operations": [{
+                "op_id": "8f0fe1ce-b32f-4a58-a4c1-8da7f5f3db4e",
+                "workbook_id": 15,
+                "client_id": "device:tab",
+                "client_seq": 1,
+                "known_revision": 8,
+                "kind": "cells.edit",
+                "changes": [{"row": 2, "col": 1, "value": 450}],
+            }],
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body["current_revision"] == 9
+    assert body["results"][0]["duplicate"] is False
+
+
+def test_rejects_operation_without_valid_uuid(monkeypatch):
+    authorize(monkeypatch)
+    workbook = {"id": 15, "name": "Compartilhada", "project_id": 4, "revision": 8}
+    monkeypatch.setattr(
+        collaboration_routes,
+        "get_workbook",
+        lambda workbook_id, include_payload=False: (workbook.copy(), FakeResponse(200, [workbook.copy()])),
+    )
+    monkeypatch.setattr(
+        collaboration_routes,
+        "require_project",
+        lambda project_id, minimum_role="viewer": ({"id": project_id}, "editor", None),
+    )
+
+    response = app.test_client().post(
+        "/api/workbooks/15/operations",
+        headers={"Authorization": "Bearer valid-token"},
+        json={
+            "operations": [{
+                "op_id": "invalido",
+                "workbook_id": 15,
+                "client_id": "device:tab",
+                "changes": [],
+            }],
+        },
+    )
+
+    assert response.status_code == 400
+    assert "identificador" in response.get_json()["error"].lower()
