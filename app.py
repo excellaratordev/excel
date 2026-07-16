@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 
+import backend
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
 from backend import (
@@ -15,10 +16,13 @@ from backend import (
 )
 from collaboration_routes import collaboration_api
 from files_routes import files_api
+from performance_cache import install as install_performance_cache
 from projects_routes import projects_api
 from workbook_routes import workbooks_api
 
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
+
+install_performance_cache(backend)
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
