@@ -96,6 +96,7 @@
     $('#new-sheet').disabled = !editable;
     $('#new-variable').disabled = !editable;
     $('#new-member').disabled = !administrable;
+    $('#new-invite').disabled = !administrable;
     $('#rename-project').disabled = !administrable;
     document.body.dataset.projectRole = state.role;
   }
@@ -411,6 +412,23 @@
         body: JSON.stringify({ email: form.get('email'), role: form.get('role') }),
       });
       await loadMembers();
+    },
+  );
+
+  $('#new-invite').onclick = () => openForm(
+    'Copiar link de convite',
+    '<label>Nível de acesso</label><select name="role"><option value="editor">Editor — pode alterar arquivos</option><option value="viewer">Visualizador — somente leitura</option><option value="admin">Administrador — gerencia membros</option></select><label>Validade do link</label><select name="valid_days"><option value="1">1 dia</option><option value="7" selected>7 dias</option><option value="30">30 dias</option></select><p class="form-help">O link funcionará apenas para a primeira conta Google que o utilizar.</p>',
+    async form => {
+      const invite = await api(`/api/projects/${state.projectId}/share-links`, {
+        method: 'POST',
+        body: JSON.stringify({ role: form.get('role'), valid_days: Number(form.get('valid_days')) }),
+      });
+      try {
+        await navigator.clipboard.writeText(invite.link);
+        alert(`Link copiado. Ele expira em ${new Date(invite.expires_at).toLocaleString('pt-BR')}.`);
+      } catch {
+        window.prompt('Copie o link de convite:', invite.link);
+      }
     },
   );
 
