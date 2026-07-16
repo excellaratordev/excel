@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR" data-invite-code="{{ invite_code }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Aceite um convite para um projeto compartilhado no Super Excel.">
+  <title>Convite — Super Excel</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+</head>
+<body class="login-page auth-pending">
+  <main class="login-card">
+    <div class="login-brand"><span class="login-brand-mark">S</span><span>Super Excel</span></div>
+    <div class="auth-loader" aria-hidden="true"></div>
+    <h1 id="invite-title">Aceitando convite...</h1>
+    <p id="invite-status">Estamos vinculando sua conta Google ao projeto compartilhado.</p>
+    <p id="invite-error" class="login-error" role="alert"></p>
+    <button id="invite-retry" class="google-login-button" type="button" hidden>
+      <span>Tentar novamente</span>
+    </button>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/invite.js') }}"></script>
+</body>
+</html>
