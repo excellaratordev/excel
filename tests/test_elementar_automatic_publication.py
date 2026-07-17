@@ -72,7 +72,8 @@ def test_hosted_html_receives_etag_watcher_and_elementar_cache_is_short() -> Non
 
     def original_site_response(_file_row, *, sandboxed=False):
         return Response(
-            "<!doctype html><html><body><script>fetch('/public/elementar/token')</script></body></html>",
+            "<!doctype html><html><head><title>Cliente</title></head>"
+            "<body><script id='client-script'>fetch('/public/elementar/token')</script></body></html>",
             content_type="text/html; charset=utf-8",
         )
 
@@ -90,6 +91,7 @@ def test_hosted_html_receives_etag_watcher_and_elementar_cache_is_short() -> Non
     assert "If-None-Match" in html
     assert "superexcel:elementar-update" in html
     assert "location.reload()" in html
+    assert html.index("__superexcelElementarWatchInstalled") < html.index("client-script")
 
     preview = github_sites._site_response({}, sandboxed=True)
     assert "__superexcelElementarWatchInstalled" not in preview.get_data(as_text=True)
