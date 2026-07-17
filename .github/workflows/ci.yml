@@ -51,8 +51,11 @@ jobs:
           github_oauth.py github_sites.py elementar_routes.py elementar_automation_routes.py
           elementar_automation_values.py elementar_realtime_delivery.py superexcel
 
-      - name: Run backend and architecture tests
-        run: pytest -q
+      - name: Run Base pipeline tests
+        run: pytest -q tests/test_file_pipeline.py tests/test_base_pipeline_frontend.py
+
+      - name: Run existing backend and architecture tests
+        run: pytest -q --ignore=tests/test_file_pipeline.py --ignore=tests/test_base_pipeline_frontend.py
 
       - name: Validate JavaScript syntax
         run: |
