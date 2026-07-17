@@ -27,15 +27,19 @@ jobs:
           pip install -r requirements.txt pytest
 
       - name: Validate Python syntax
-        run: python -m compileall -q app.py backend.py projects_routes.py files_routes.py workbook_routes.py collaboration_routes.py performance_cache.py
+        run: >-
+          python -m compileall -q
+          app.py backend.py projects_routes.py files_routes.py workbook_routes.py
+          collaboration_routes.py performance_cache.py telemetry_routes.py superexcel
 
       - name: Run backend tests
         run: pytest -q
 
-      - name: Validate collaboration JavaScript syntax
+      - name: Validate collaboration and telemetry JavaScript syntax
         run: |
           node --check static/js/collab-operation.js
           node --check static/js/collab-operation-store.js
           node --check static/js/sheet-bootstrap.js
           node --check static/js/app-v2.js
           node --check static/js/sheet-collaboration-v3.js
+          node --check static/js/performance-telemetry.js
