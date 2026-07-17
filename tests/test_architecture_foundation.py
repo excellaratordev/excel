@@ -10,20 +10,45 @@ from superexcel.core.permissions import (
 from superexcel.core.workbook_payload import (
     compact_empty_workbook,
     inspect_workbook_payload,
+    to_sparse_payload,
 )
 from superexcel.telemetry.registry import TelemetryRegistry
 from telemetry_routes import normalize_metrics
 
 
-def test_empty_workbook_is_compact():
+def test_empty_workbook_is_compact_sparse_v2():
     payload = compact_empty_workbook("Financeiro")
 
     assert payload == {
-        "version": 1,
+        "version": 2,
+        "storage": "sparse",
         "name": "Financeiro",
         "rows": 60,
         "cols": 26,
         "cells": [],
+    }
+
+
+def test_dense_v1_payload_is_converted_without_losing_cells():
+    payload = to_sparse_payload({
+        "version": 1,
+        "name": "Legado",
+        "rows": 3,
+        "cols": 3,
+        "cells": [[100, None, "=A1*2"], [None, "Pago"]],
+    })
+
+    assert payload == {
+        "version": 2,
+        "storage": "sparse",
+        "name": "Legado",
+        "rows": 3,
+        "cols": 3,
+        "cells": [
+            {"r": 0, "c": 0, "v": 100},
+            {"r": 0, "c": 2, "v": "=A1*2"},
+            {"r": 1, "c": 1, "v": "Pago"},
+        ],
     }
 
 
