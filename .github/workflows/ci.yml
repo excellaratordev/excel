@@ -41,6 +41,7 @@ jobs:
           node --check static/js/calculation/dependency-graph.js
           node --check static/js/calculation/function-library.js
           node --check static/js/calculation/formula-runtime.js
+          node --check static/js/calculation/runtime-bridge.js
           node --check static/js/collab-operation.js
           node --check static/js/collab-operation-store.js
           node --check static/js/sheet-bootstrap.js
