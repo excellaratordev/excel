@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/invite-controls.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/manager-topbar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
 </head>
 <body class="auth-pending">
@@ -31,15 +32,18 @@
       </div>
     </div>
 
-    <div class="actions">
+    <div class="actions" aria-label="Ações de arquivos">
       <button id="new-folder" class="secondary-action" type="button"><span aria-hidden="true">＋</span>Pasta</button>
       <button id="new-elementar" class="secondary-action" type="button"><span aria-hidden="true">◈</span>Elementar</button>
       <button id="new-sheet" class="primary" type="button"><span aria-hidden="true">＋</span>Nova planilha</button>
+    </div>
+
+    <div class="topbar-account">
       <div class="auth-user">
         <img class="auth-avatar" data-auth-avatar src="" alt="">
         <div class="auth-user-text"><strong data-auth-name>Conta Google</strong><span data-auth-email></span></div>
-        <button class="auth-signout" type="button" data-auth-signout title="Sair">Sair</button>
       </div>
+      <button class="auth-signout" type="button" data-auth-signout title="Sair">Sair</button>
     </div>
   </header>
 
