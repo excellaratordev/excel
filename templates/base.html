@@ -2,11 +2,12 @@
 <html lang="pt-BR" data-workbook-id="{{ preload_workbook_id or '' }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="description" content="Base relacional do Super Excel, sem fórmulas e com linhas virtualizadas.">
   <title>Super Excel — Base</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/treated-base.css') }}">
 </head>
 <body class="auth-pending base-loading">
   <header class="base-topbar">
@@ -16,6 +17,7 @@
       <span id="base-stage" class="base-stage">Base</span>
     </div>
     <div class="base-actions">
+      <button id="treated-source-mode-button" type="button" hidden aria-pressed="false">▦ Planilha</button>
       <button id="add-column" type="button">＋ Coluna</button>
       <button id="add-row" class="primary" type="button">＋ Registro</button>
       <a class="button-link" href="/files">Arquivos</a>
@@ -32,13 +34,47 @@
       <p id="base-status" role="status">Carregando estrutura…</p>
     </section>
 
-    <section class="base-grid-shell" aria-label="Dados relacionais">
-      <div id="base-grid-header" class="base-grid-header"></div>
-      <div id="base-grid-viewport" class="base-grid-viewport" tabindex="0">
-        <div id="base-grid-spacer" class="base-grid-spacer"></div>
-        <div id="base-grid-layer" class="base-grid-layer"></div>
-        <div id="base-empty" class="base-empty" hidden><strong>Nenhum registro</strong><span>Adicione o primeiro registro desta Base.</span></div>
+    <section class="base-workspace" aria-label="Base e origem dos dados">
+      <div class="base-output-column">
+        <section class="base-grid-shell" aria-label="Dados relacionais">
+          <div id="base-grid-header" class="base-grid-header"></div>
+          <div id="base-grid-viewport" class="base-grid-viewport" tabindex="0">
+            <div id="base-grid-spacer" class="base-grid-spacer"></div>
+            <div id="base-grid-layer" class="base-grid-layer"></div>
+            <div id="base-empty" class="base-empty" hidden><strong>Nenhum registro</strong><span>Adicione o primeiro registro desta Base.</span></div>
+          </div>
+        </section>
       </div>
+
+      <aside id="treated-source-panel" class="treated-source-panel" hidden aria-label="Selecionar dados de uma Planilha">
+        <header class="treated-source-header">
+          <div class="treated-source-title">
+            <span class="treated-source-mark" aria-hidden="true">▦</span>
+            <div><strong>Planilha de origem</strong><small>Selecione a área que alimentará a Base 2</small></div>
+          </div>
+          <div class="treated-source-header-actions">
+            <button id="treated-source-refresh" type="button" title="Atualizar dados" aria-label="Atualizar dados">↻</button>
+            <button id="treated-source-close" type="button" title="Fechar painel" aria-label="Fechar painel">×</button>
+          </div>
+        </header>
+        <div class="treated-source-controls">
+          <select id="treated-source-select" aria-label="Planilha de cálculo"></select>
+          <button id="treated-source-open" type="button">Abrir</button>
+        </div>
+        <div class="treated-source-hint">No computador, clique ou arraste. No celular, toque em <strong>Selecionar área</strong> e arraste sobre as células.</div>
+        <div id="treated-source-status" class="treated-source-status" aria-live="polite">Aguardando a Base 2.</div>
+        <div id="treated-source-grid" class="treated-source-grid" tabindex="0" aria-label="Prévia calculada e virtualizada da Planilha">
+          <div id="treated-source-canvas" class="treated-source-canvas"></div>
+        </div>
+        <div id="treated-source-selection" class="treated-source-selection">Selecione uma célula ou arraste uma área.</div>
+        <footer class="treated-source-footer">
+          <label class="treated-source-header-row"><input id="treated-source-header-row" type="checkbox" checked> Primeira linha como cabeçalho</label>
+          <div class="treated-source-footer-actions">
+            <button id="treated-source-select-mode" type="button" aria-pressed="false">Selecionar área</button>
+            <button id="treated-source-sync" class="primary" type="button" disabled>Usar na Base 2</button>
+          </div>
+        </footer>
+      </aside>
     </section>
   </main>
 
@@ -56,5 +92,6 @@
   <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="{{ url_for('static', filename='js/base-grid.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/treated-base-panel.js') }}"></script>
 </body>
 </html>

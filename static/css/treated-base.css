@@ -1,0 +1,420 @@
+.base-workspace {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 14px;
+}
+
+.base-output-column {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+}
+
+#treated-source-mode-button.active {
+  border-color: #4f6fc7;
+  background: #eef3ff;
+  color: #294a9b;
+}
+
+.treated-base-workbook #add-column,
+.treated-base-workbook #add-row {
+  display: none;
+}
+
+.treated-base-workbook .base-grid-cell input,
+.treated-base-workbook .base-grid-cell select {
+  pointer-events: none;
+  color: #344054;
+  background: #fbfcfe;
+}
+
+.treated-base-workbook .base-grid-cell.action button,
+.treated-base-workbook .base-grid-header-cell button {
+  display: none;
+}
+
+.treated-base-workbook .base-context > div:nth-child(1) strong::after {
+  content: " · sincronizado";
+  color: #4f6fc7;
+  font-weight: 650;
+}
+
+.treated-base-workbook.treated-source-open .base-workspace {
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 42vw);
+}
+
+.treated-source-panel {
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid #cdd8ee;
+  border-radius: 14px;
+  background: #fff;
+  overflow: hidden;
+  box-shadow: 0 12px 34px rgba(37, 62, 122, .1);
+  display: grid;
+  grid-template-rows: auto auto auto auto minmax(320px, 1fr) auto auto;
+}
+
+.treated-source-panel[hidden] {
+  display: none;
+}
+
+.treated-source-header {
+  min-height: 62px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e3e8f2;
+  background: linear-gradient(135deg, #f6f8ff, #eef3ff);
+}
+
+.treated-source-title {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.treated-source-mark {
+  width: 38px;
+  height: 38px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 11px;
+  background: #4f6fc7;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 900;
+}
+
+.treated-source-title > div {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.treated-source-title strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.treated-source-title small {
+  color: #667085;
+}
+
+.treated-source-header-actions,
+.treated-source-controls,
+.treated-source-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.treated-source-header-actions button {
+  min-width: 38px;
+  padding: 0 10px;
+}
+
+.treated-source-controls {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e7ebf2;
+}
+
+.treated-source-controls select {
+  min-width: 0;
+  flex: 1;
+  height: 42px;
+  border: 1px solid #cbd5e1;
+  border-radius: 9px;
+  padding: 0 10px;
+  background: #fff;
+  color: #172033;
+}
+
+.treated-source-hint {
+  padding: 9px 12px;
+  color: #5c6780;
+  background: #fbfcff;
+  border-bottom: 1px solid #edf0f6;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.treated-source-hint code {
+  color: #294a9b;
+  font-weight: 750;
+}
+
+.treated-source-status {
+  min-height: 34px;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  color: #667085;
+  border-bottom: 1px solid #edf0f6;
+  font-size: 12px;
+}
+
+.treated-source-status[data-state="error"] {
+  color: #b42318;
+  background: #fff4f2;
+}
+
+.treated-source-grid {
+  position: relative;
+  min-height: 320px;
+  overflow: auto;
+  outline: none;
+  background: #fff;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
+
+.treated-source-grid.selection-mode {
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.treated-source-canvas {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+}
+
+.treated-source-corner,
+.treated-source-col-header,
+.treated-source-row-header,
+.treated-source-cell {
+  position: absolute;
+  left: 0;
+  top: 0;
+  overflow: hidden;
+  border-right: 1px solid #e5e9f0;
+  border-bottom: 1px solid #e5e9f0;
+  user-select: none;
+}
+
+.treated-source-corner,
+.treated-source-col-header,
+.treated-source-row-header {
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f3f6fb;
+  color: #61708d;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.treated-source-corner {
+  z-index: 6;
+}
+
+.treated-source-cell {
+  padding: 6px 8px;
+  z-index: 1;
+  background: #fff;
+  color: #172033;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.treated-source-cell.is-computed {
+  background: #fbfdff;
+}
+
+.treated-source-cell.is-formula {
+  color: #8a5a18;
+  background: #fffaf0;
+  font-style: italic;
+}
+
+.treated-source-cell.selected,
+.treated-source-cell.range-selected {
+  background: #eaf0ff;
+}
+
+.treated-source-cell.selected {
+  box-shadow: inset 0 0 0 2px #4f6fc7;
+}
+
+.treated-source-cell.range-top { border-top: 2px solid #4f6fc7; }
+.treated-source-cell.range-bottom { border-bottom: 2px solid #4f6fc7; }
+.treated-source-cell.range-left { border-left: 2px solid #4f6fc7; }
+.treated-source-cell.range-right { border-right: 2px solid #4f6fc7; }
+
+.treated-source-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #667085;
+  text-align: center;
+}
+
+.treated-source-empty > div {
+  display: grid;
+  gap: 5px;
+}
+
+.treated-source-empty strong {
+  color: #172033;
+}
+
+.treated-source-selection {
+  min-height: 40px;
+  padding: 9px 12px;
+  overflow: hidden;
+  border-top: 1px solid #e7ebf2;
+  background: #f7f9fd;
+  color: #294a9b;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.treated-source-footer {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-top: 1px solid #e7ebf2;
+  background: #fff;
+}
+
+.treated-source-header-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #475467;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.treated-source-header-row input {
+  width: 17px;
+  height: 17px;
+}
+
+#treated-source-select-mode {
+  display: none;
+}
+
+@media (max-width: 1180px) {
+  .treated-base-workbook.treated-source-open .base-workspace {
+    grid-template-columns: minmax(0, 1fr) minmax(330px, 46vw);
+  }
+
+  .treated-source-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .treated-source-footer-actions {
+    width: 100%;
+  }
+
+  .treated-source-footer-actions button {
+    flex: 1;
+  }
+}
+
+@media (max-width: 800px) {
+  .treated-base-workbook.treated-source-open {
+    overflow: hidden;
+  }
+
+  .treated-base-workbook.treated-source-open .base-workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .treated-source-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    border: 0;
+    border-radius: 0;
+    grid-template-rows: auto auto auto auto minmax(0, 1fr) auto auto;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .treated-source-header {
+    min-height: 66px;
+    padding-top: max(11px, env(safe-area-inset-top));
+  }
+
+  .treated-source-title small {
+    max-width: 52vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .treated-source-controls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .treated-source-grid {
+    min-height: 0;
+  }
+
+  #treated-source-select-mode {
+    display: inline-flex;
+  }
+
+  #treated-source-select-mode.active {
+    border-color: #4f6fc7;
+    background: #eaf0ff;
+    color: #294a9b;
+  }
+
+  .treated-source-footer-actions button {
+    min-height: 46px;
+  }
+
+  .treated-source-hint {
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 520px) {
+  .treated-source-header-actions button {
+    min-width: 42px;
+    min-height: 42px;
+  }
+
+  .treated-source-controls {
+    padding: 8px;
+  }
+
+  .treated-source-controls button {
+    min-height: 42px;
+    padding-inline: 10px;
+  }
+
+  .treated-source-footer {
+    padding: 8px;
+  }
+
+  .treated-source-footer-actions {
+    display: grid;
+    grid-template-columns: 1fr 1.15fr;
+  }
+
+  .treated-source-selection {
+    min-height: 38px;
+    padding-inline: 9px;
+  }
+}
