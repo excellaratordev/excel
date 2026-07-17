@@ -1,0 +1,47 @@
+.base-grid-cell.has-treated-formula {
+  position: relative;
+}
+
+.base-grid-cell.has-treated-formula input:not(:focus) {
+  color: transparent;
+  caret-color: transparent;
+}
+
+.treated-formula-display {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 10px;
+  overflow: hidden;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.base-grid-cell:focus-within .treated-formula-display {
+  display: none;
+}
+
+.base-grid-cell.treated-formula-pending .treated-formula-display {
+  color: #667085;
+  font-style: italic;
+}
+
+.base-grid-cell.treated-formula-error .treated-formula-display {
+  color: #b42318;
+}
+
+.treated-formula-runtime-frame {
+  position: fixed;
+  left: -9999px;
+  top: -9999px;
+  width: 1px;
+  height: 1px;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
