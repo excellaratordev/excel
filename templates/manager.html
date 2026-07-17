@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/invite-controls.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager-topbar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
 </head>
 <body class="auth-pending">
   <header class="manager-topbar">
@@ -33,6 +34,7 @@
 
     <div class="actions" aria-label="Ações de arquivos">
       <button id="new-folder" class="secondary-action" type="button"><span aria-hidden="true">＋</span>Pasta</button>
+      <button id="new-elementar" class="secondary-action" type="button"><span aria-hidden="true">◈</span>Elementar</button>
       <button id="new-sheet" class="primary" type="button"><span aria-hidden="true">＋</span>Nova planilha</button>
     </div>
 
@@ -79,6 +81,7 @@
           </div>
           <div class="page-heading-actions">
             <button class="secondary-action mobile-create-folder" type="button" data-proxy-click="new-folder"><span aria-hidden="true">＋</span>Pasta</button>
+            <button class="secondary-action" type="button" data-proxy-click="new-elementar"><span aria-hidden="true">◈</span>Elementar</button>
             <button class="primary mobile-create-sheet" type="button" data-proxy-click="new-sheet"><span aria-hidden="true">＋</span>Nova planilha</button>
           </div>
         </header>
@@ -168,8 +171,18 @@
     </form>
   </dialog>
 
+  <dialog id="elementar-create-dialog" class="elementar-create-dialog">
+    <form>
+      <div><h2>Nova planilha Elementar</h2><p>Transforme regras e intervalos de outras planilhas em um JSON pronto para o frontend.</p></div>
+      <label>Nome da planilha<input name="name" maxlength="120" value="Nova Elementar" required></label>
+      <p class="elementar-inline-error" data-elementar-create-error></p>
+      <div class="elementar-create-actions"><button type="button" data-elementar-cancel>Cancelar</button><button class="primary" type="submit" data-elementar-create>Criar Elementar</button></div>
+    </form>
+  </dialog>
+
   <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/elementar-manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager-ui.js') }}"></script>
   <script src="{{ url_for('static', filename='js/github-connector.js') }}"></script>

@@ -24,6 +24,7 @@ from backend import (
     protect_api_routes,
 )
 from collaboration_routes import collaboration_api
+from elementar_routes import elementar_api
 from files_routes import files_api
 from github_connector import github_api
 from github_oauth import github_oauth_api, install_secure_connector, secure_github_callback
@@ -53,6 +54,7 @@ app.register_blueprint(recovery_api)
 app.register_blueprint(roles_api)
 app.register_blueprint(snapshot_api)
 app.register_blueprint(telemetry_api)
+app.register_blueprint(elementar_api)
 app.register_blueprint(github_oauth_api)
 app.register_blueprint(github_api)
 app.view_functions["github_api.github_callback"] = secure_github_callback
