@@ -8,10 +8,13 @@ function loadCatalog() {
   global.window = {};
   const parserPath = path.resolve(__dirname, '../../static/js/calculation/formula-parser.js');
   const catalogPath = path.resolve(__dirname, '../../static/js/calculation/formula-catalog.js');
+  const logicalPath = path.resolve(__dirname, '../../static/js/calculation/logical-library.js');
   delete require.cache[parserPath];
   delete require.cache[catalogPath];
+  delete require.cache[logicalPath];
   require(parserPath);
   require(catalogPath);
+  require(logicalPath);
   return {
     parser: global.window.SuperExcelFormulaParser,
     catalog: global.window.SuperExcelFormulaCatalog,
@@ -23,7 +26,8 @@ test('formula catalog documents every currently supported Portuguese function', 
   const names = catalog.items.map(item => item.name);
   const expected = [
     'SOMA', 'MÉDIA', 'MÁXIMO', 'MÍNIMO',
-    'SE', 'SES', 'E', 'OU', 'SEERRO',
+    'SE', 'SES', 'E', 'OU', 'NÃO', 'OUEXCL', 'SEERRO', 'SENÃODISP', 'PARÂMETRO',
+    'ÉCÉL.VAZIA', 'ÉLÓGICO', 'ÉNÚM', 'ÉTEXTO', 'ÉERRO', 'ÉERROS', 'ÉNÃO.DISP', 'NÃO.DISP',
     'CONT.NÚM', 'CONT.VALORES', 'CONT.SE', 'CONT.SES',
     'SOMASE', 'SOMASES', 'MÉDIASE', 'MÉDIASES',
     'PROCV', 'PROCX', 'ÍNDICE', 'CORRESP',
@@ -32,7 +36,7 @@ test('formula catalog documents every currently supported Portuguese function', 
     'HOJE', 'VERDADEIRO', 'FALSO',
   ];
 
-  assert.equal(catalog.count, 32);
+  assert.equal(catalog.count, 44);
   assert.equal(new Set(names).size, names.length);
   assert.deepEqual([...names].sort(), [...expected].sort());
 });
