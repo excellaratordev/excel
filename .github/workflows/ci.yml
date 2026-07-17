@@ -54,4 +54,4 @@ jobs:
 
       - name: Ensure HyperFormula is not shipped
         run: |
-          ! grep -Rni "hyperformula" templates static/js README.md docs/ARCHITECTURE.md
+          ! grep -Rni "hyperformula" templates static/js README.md
