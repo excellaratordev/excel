@@ -7,6 +7,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/invite-controls.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
 </head>
 <body class="auth-pending">
   <header class="manager-topbar">
@@ -20,6 +21,7 @@
     </div>
     <div class="actions">
       <button id="new-folder" type="button">Nova pasta</button>
+      <button id="new-elementar" type="button">◈ Nova Elementar</button>
       <button id="new-sheet" class="primary" type="button">Nova planilha</button>
       <div class="auth-user">
         <img class="auth-avatar" data-auth-avatar src="" alt="">
@@ -128,8 +130,23 @@
       <div class="dialog-actions"><button value="cancel">Cancelar</button><button id="dialog-save" value="default" class="primary">Salvar</button></div>
     </form>
   </dialog>
+  <dialog id="elementar-create-dialog" class="elementar-create-dialog">
+    <form>
+      <div>
+        <h2>Nova planilha Elementar</h2>
+        <p>Ela transforma intervalos de outras planilhas em um JSON pronto para o frontend.</p>
+      </div>
+      <label>Nome da planilha<input name="name" maxlength="120" value="Nova Elementar" required></label>
+      <p class="elementar-inline-error" data-elementar-create-error></p>
+      <div class="elementar-create-actions">
+        <button type="button" data-elementar-cancel>Cancelar</button>
+        <button class="primary" type="submit" data-elementar-create>Criar Elementar</button>
+      </div>
+    </form>
+  </dialog>
   <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/elementar-manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/github-connector.js') }}"></script>
 </body>
