@@ -29,6 +29,7 @@
   }, true);
 
   grid.addEventListener('pointerdown', () => {
+    remember(document.activeElement);
     formula.focus({ preventScroll: true });
     const limit = formula.value.length;
     const start = Math.max(0, Math.min(limit, caret.start));
