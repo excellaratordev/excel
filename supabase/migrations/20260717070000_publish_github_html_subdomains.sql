@@ -50,7 +50,7 @@ begin
       add constraint github_connections_site_slug_format
       check (
         char_length(site_slug) between 3 and 63
-        and site_slug ~ '^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$'
+        and site_slug ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$'
       );
   end if;
 end;
