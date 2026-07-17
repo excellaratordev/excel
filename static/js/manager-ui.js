@@ -136,25 +136,27 @@
         if (matches && type !== 'back') visible += 1;
       }
 
-      const empty = items.querySelector('.empty-state');
-      if (empty) {
-        empty.hidden = Boolean(query && visible);
-        if (query && !visible && empty.dataset.mode !== 'search') {
-          empty.dataset.mode = 'search';
-          empty.innerHTML = '<strong>Nenhum resultado encontrado</strong><span>Tente outro nome ou limpe a pesquisa.</span>';
+      const nativeEmpty = items.querySelector('.empty-state:not(.search-empty-state)');
+      let searchEmpty = items.querySelector('.search-empty-state');
+      if (nativeEmpty) {
+        nativeEmpty.hidden = false;
+        const mode = query && !visible ? 'search' : 'native';
+        if (nativeEmpty.dataset.mode !== mode) {
+          nativeEmpty.dataset.mode = mode;
+          nativeEmpty.innerHTML = mode === 'search'
+            ? '<strong>Nenhum resultado encontrado</strong><span>Tente outro nome ou limpe a pesquisa.</span>'
+            : '<strong>Nenhum arquivo nesta pasta</strong><span>Crie uma pasta ou planilha para começar.</span>';
+        }
+        searchEmpty?.remove();
+      } else if (query && !visible) {
+        if (!searchEmpty) {
+          searchEmpty = document.createElement('div');
+          searchEmpty.className = 'empty-state search-empty-state';
+          searchEmpty.innerHTML = '<strong>Nenhum resultado encontrado</strong><span>Tente outro nome ou limpe a pesquisa.</span>';
+          items.append(searchEmpty);
         }
       } else {
-        let searchEmpty = items.querySelector('.search-empty-state');
-        if (query && !visible) {
-          if (!searchEmpty) {
-            searchEmpty = document.createElement('div');
-            searchEmpty.className = 'empty-state search-empty-state';
-            searchEmpty.innerHTML = '<strong>Nenhum resultado encontrado</strong><span>Tente outro nome ou limpe a pesquisa.</span>';
-            items.append(searchEmpty);
-          }
-        } else {
-          searchEmpty?.remove();
-        }
+        searchEmpty?.remove();
       }
 
       if (folderCount) folderCount.textContent = String(folders);
