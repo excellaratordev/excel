@@ -63,9 +63,11 @@ jobs:
           node --check static/js/github-connector.js
           node --check static/js/elementar-manager.js
           node --check static/js/elementar-sheet.js
+          node --check static/js/formula-glossary.js
           node --check static/js/calculation/formula-parser.js
           node --check static/js/calculation/dependency-graph.js
           node --check static/js/calculation/function-library.js
+          node --check static/js/calculation/formula-catalog.js
           node --check static/js/calculation/formula-runtime.js
           node --check static/js/calculation/enterprise-kernel.js
           node --check static/js/calculation/runtime-bridge.js
