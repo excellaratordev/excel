@@ -37,7 +37,8 @@ jobs:
         run: >-
           python -m compileall -q
           app.py asset_routes.py backend.py projects_routes.py files_routes.py workbook_routes.py
-          collaboration_routes.py snapshot_routes.py performance_cache.py telemetry_routes.py superexcel
+          collaboration_routes.py snapshot_routes.py performance_cache.py telemetry_routes.py
+          github_connector.py github_oauth.py superexcel
 
       - name: Run backend tests
         run: pytest -q
@@ -48,6 +49,7 @@ jobs:
           node --check static/js/auth-guard.js
           node --check static/js/login.js
           node --check static/js/auth-callback.js
+          node --check static/js/github-connector.js
           node --check static/js/calculation/formula-parser.js
           node --check static/js/calculation/dependency-graph.js
           node --check static/js/calculation/function-library.js
