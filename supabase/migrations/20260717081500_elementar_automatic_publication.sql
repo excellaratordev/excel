@@ -9,6 +9,58 @@ alter table public.elementar_configs
 alter table public.elementar_publications
   add column if not exists payload_hash text;
 
+update public.elementar_publications
+set payload_hash = md5(payload::text)
+where payload_hash is null or payload_hash = '';
+
+update public.elementar_configs as config
+set last_payload_hash = publication.payload_hash
+from public.elementar_publications as publication
+where publication.id = config.last_publication_id
+  and config.last_payload_hash is distinct from publication.payload_hash;
+
+create or replace function public.elementar_fill_payload_hash()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.payload_hash is null or new.payload_hash = '' then
+    new.payload_hash := md5(new.payload::text);
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists elementar_publications_fill_payload_hash on public.elementar_publications;
+create trigger elementar_publications_fill_payload_hash
+before insert or update of payload, payload_hash on public.elementar_publications
+for each row execute function public.elementar_fill_payload_hash();
+
+create or replace function public.elementar_sync_active_payload_hash()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.last_publication_id is distinct from old.last_publication_id
+     and new.last_publication_id is not null then
+    select publication.payload_hash
+      into new.last_payload_hash
+      from public.elementar_publications as publication
+     where publication.id = new.last_publication_id;
+  elsif new.last_publication_id is null then
+    new.last_payload_hash := null;
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists elementar_configs_sync_active_payload_hash on public.elementar_configs;
+create trigger elementar_configs_sync_active_payload_hash
+before update of last_publication_id on public.elementar_configs
+for each row execute function public.elementar_sync_active_payload_hash();
+
 create index if not exists elementar_publications_payload_hash_idx
   on public.elementar_publications (workbook_id, payload_hash, version desc);
 
