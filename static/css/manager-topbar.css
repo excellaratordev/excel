@@ -1,0 +1,312 @@
+.manager-topbar {
+  min-height: 72px;
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(420px, 520px) max-content minmax(220px, 1fr);
+  align-items: center;
+  gap: 16px;
+  padding: 8px 18px;
+}
+
+.manager-topbar .brand-block {
+  align-self: center;
+  gap: 12px;
+}
+
+.manager-topbar .brand-mark {
+  width: 44px;
+  height: 44px;
+  flex-basis: 44px;
+  border-radius: 13px;
+}
+
+.manager-topbar .brand-copy strong {
+  font-size: 17px;
+  line-height: 1.15;
+}
+
+.manager-topbar .brand-copy small {
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+.manager-topbar .project-switcher {
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.manager-topbar .project-select-wrap {
+  width: 300px;
+  min-width: 240px;
+}
+
+.manager-topbar .project-select-wrap > label {
+  margin-bottom: 4px;
+  font-size: 9px;
+  line-height: 1;
+}
+
+.manager-topbar .select-shell {
+  height: 42px;
+  padding: 4px 6px 4px 13px;
+  border-radius: 11px;
+}
+
+.manager-topbar .select-shell select {
+  height: 32px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 32px;
+}
+
+.manager-topbar .role-badge {
+  padding: 6px 10px;
+  font-size: 10px;
+}
+
+.manager-topbar .project-actions,
+.manager-topbar .actions,
+.manager-topbar .topbar-account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.manager-topbar .project-actions button,
+.manager-topbar .actions button,
+.manager-topbar .topbar-account > button {
+  min-height: 42px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  white-space: nowrap;
+  line-height: 1;
+  box-shadow: none;
+}
+
+.manager-topbar .project-actions .icon-text-button {
+  min-width: 132px;
+}
+
+.manager-topbar .project-actions .icon-button {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+}
+
+.manager-topbar .actions {
+  justify-content: flex-start;
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 255, 255, .14);
+}
+
+.manager-topbar .actions > .secondary-action {
+  min-width: 100px;
+}
+
+.manager-topbar .actions > .primary {
+  min-width: 148px;
+}
+
+.manager-topbar .topbar-account {
+  justify-self: end;
+  justify-content: flex-end;
+  padding-left: 18px;
+  border-left: 1px solid rgba(255, 255, 255, .14);
+}
+
+.manager-topbar .topbar-account .auth-user {
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.manager-topbar .topbar-account .auth-avatar {
+  width: 38px;
+  height: 38px;
+  flex-basis: 38px;
+}
+
+.manager-topbar .topbar-account .auth-user-text {
+  text-align: left;
+}
+
+.manager-topbar .topbar-account .auth-user-text strong {
+  max-width: 165px;
+  font-size: 13px;
+  line-height: 1.2;
+}
+
+.manager-topbar .topbar-account .auth-user-text span {
+  max-width: 180px;
+  margin-top: 2px;
+  font-size: 10px;
+}
+
+.manager-topbar .auth-signout {
+  min-width: 66px;
+}
+
+.manager-layout {
+  min-height: calc(100vh - 72px);
+}
+
+.manager-sidebar {
+  top: 72px;
+  height: calc(100vh - 72px);
+}
+
+@media (max-width: 1450px) {
+  .manager-topbar {
+    grid-template-columns: minmax(190px, 220px) minmax(390px, 470px) max-content minmax(170px, 1fr);
+    gap: 12px;
+  }
+
+  .manager-topbar .brand-copy small,
+  .manager-topbar .topbar-account .auth-user-text span {
+    display: none;
+  }
+
+  .manager-topbar .project-select-wrap {
+    width: 270px;
+  }
+
+  .manager-topbar .project-actions .icon-text-button {
+    min-width: 122px;
+  }
+
+  .manager-topbar .actions {
+    padding-left: 12px;
+  }
+
+  .manager-topbar .actions > .secondary-action {
+    min-width: 88px;
+  }
+
+  .manager-topbar .actions > .primary {
+    min-width: 136px;
+  }
+}
+
+@media (max-width: 1180px) {
+  .manager-topbar {
+    grid-template-columns: minmax(170px, 200px) minmax(360px, 1fr) auto;
+    min-height: 72px;
+  }
+
+  .manager-topbar .actions {
+    display: none;
+  }
+
+  .manager-topbar .topbar-account {
+    grid-column: 3;
+  }
+
+  .manager-layout {
+    min-height: calc(100vh - 72px);
+  }
+
+  .manager-sidebar {
+    top: 72px;
+    height: calc(100vh - 72px);
+  }
+
+  .page-heading-actions {
+    display: flex;
+  }
+}
+
+@media (max-width: 900px) {
+  .manager-topbar {
+    grid-template-columns: auto minmax(250px, 1fr) auto;
+    gap: 10px;
+  }
+
+  .manager-topbar .brand-copy {
+    display: none;
+  }
+
+  .manager-topbar .brand-mark {
+    width: 40px;
+    height: 40px;
+    flex-basis: 40px;
+  }
+
+  .manager-topbar .project-switcher {
+    width: 100%;
+  }
+
+  .manager-topbar .project-select-wrap {
+    width: min(320px, 100%);
+    min-width: 0;
+    flex: 1;
+  }
+
+  .manager-topbar .project-actions .icon-text-button {
+    display: none;
+  }
+
+  .manager-topbar .topbar-account .auth-user-text {
+    display: none;
+  }
+
+  .manager-topbar .topbar-account {
+    padding-left: 12px;
+  }
+}
+
+@media (max-width: 680px) {
+  .manager-topbar {
+    position: relative;
+    min-height: 62px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 9px;
+    padding: 8px 11px;
+  }
+
+  .manager-topbar .brand-mark {
+    width: 38px;
+    height: 38px;
+    flex-basis: 38px;
+    border-radius: 11px;
+  }
+
+  .manager-topbar .project-switcher {
+    order: initial;
+    width: auto;
+  }
+
+  .manager-topbar .project-select-wrap > label,
+  .manager-topbar .project-actions,
+  .manager-topbar .role-badge,
+  .manager-topbar .topbar-account .auth-user {
+    display: none;
+  }
+
+  .manager-topbar .select-shell {
+    height: 40px;
+    padding-left: 11px;
+  }
+
+  .manager-topbar .select-shell select {
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .manager-topbar .topbar-account {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .manager-topbar .topbar-account > button {
+    min-width: 54px;
+    height: 40px;
+    min-height: 40px;
+    padding-inline: 10px;
+  }
+}
