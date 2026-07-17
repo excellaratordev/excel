@@ -65,6 +65,7 @@ jobs:
           node --check static/js/snapshot-manager.js
           node --check static/js/grid/sparse-store.js
           node --check static/js/grid/viewport.js
+          node --check static/js/grid/interaction.js
           node --check static/js/sheet-capabilities.js
           node --check static/js/sheet-bootstrap-v2.js
           node --check static/js/app-v2.js
