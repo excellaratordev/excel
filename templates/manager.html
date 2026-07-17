@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/invite-controls.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager-topbar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/roles-admin.css') }}">
   <style>
     .create-menu { position: relative; }
     .create-menu > summary { list-style: none; cursor: pointer; user-select: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--green, #18864b); color: #fff; font: inherit; font-weight: 700; white-space: nowrap; }
@@ -78,6 +79,7 @@
         <button class="nav active" data-view="files" type="button"><span class="nav-icon" aria-hidden="true">▦</span><span>Arquivos</span></button>
         <button class="nav" data-view="variables" type="button"><span class="nav-icon" aria-hidden="true">⌁</span><span>Variáveis externas</span></button>
         <button class="nav" data-view="members" type="button"><span class="nav-icon" aria-hidden="true">◎</span><span>Membros e acessos</span></button>
+        <button class="nav" data-view="roles" type="button"><span class="nav-icon" aria-hidden="true">⚿</span><span>Roles e permissões</span></button>
         <button class="nav" data-view="github" type="button"><span class="nav-icon" aria-hidden="true">⌘</span><span>GitHub</span></button>
       </nav>
 
@@ -165,6 +167,36 @@
         </div>
       </div>
 
+      <div id="roles-view" class="view">
+        <div class="section-panel">
+          <div class="section-head">
+            <div><span class="eyebrow">Controle granular</span><h2>Roles e permissões</h2><p>Crie conjuntos de capacidades e atribua-os aos membros sem alterar o código.</p></div>
+            <button id="new-role" class="primary" type="button">＋ Nova role</button>
+          </div>
+          <div class="roles-summary">
+            <article><span>Roles disponíveis</span><strong id="roles-total">0</strong></article>
+            <article><span>Roles personalizadas</span><strong id="roles-custom-total">0</strong></article>
+            <article><span>Capacidades configuráveis</span><strong id="roles-capabilities-total">0</strong></article>
+          </div>
+          <p id="roles-status" class="roles-status" role="status"></p>
+          <div class="roles-admin-grid">
+            <section class="roles-panel">
+              <div class="roles-panel-head"><div><h3>Catálogo de roles</h3><p>As roles padrão são modelos imutáveis; as personalizadas podem ser editadas.</p></div></div>
+              <div id="roles-list" class="roles-list"></div>
+            </section>
+            <section class="roles-panel">
+              <div class="roles-panel-head"><div><h3>Atribuição de membros</h3><p>Troque a role de cada pessoa imediatamente.</p></div></div>
+              <form id="role-member-form" class="role-member-form">
+                <input id="role-member-email" type="email" placeholder="pessoa@empresa.com" required>
+                <select id="role-member-role" aria-label="Role do novo membro"></select>
+                <button class="primary" type="submit">Adicionar</button>
+              </form>
+              <div id="role-members-list" class="role-members-list"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+
       <div id="github-view" class="view">
         <div class="section-panel">
           <div class="section-head"><div><span class="eyebrow">Integração de código</span><h2>Conector GitHub</h2><p>Espelhe arquivos HTML encontrados em pastas <code>templates</code>.</p></div></div>
@@ -203,10 +235,20 @@
     </form>
   </dialog>
 
+  <dialog id="role-dialog" class="role-dialog">
+    <form>
+      <div class="role-dialog-head"><div><h2 id="role-dialog-title">Nova role</h2><p>Selecione exatamente o que esta role poderá fazer.</p></div></div>
+      <label>Nome técnico<input name="role_name" maxlength="40" pattern="[a-z][a-z0-9_-]{1,39}" placeholder="financeiro-editor" required></label>
+      <div id="role-capabilities" class="role-capabilities"></div>
+      <div class="role-dialog-actions"><button type="button" data-role-cancel>Cancelar</button><button id="role-dialog-save" class="primary" type="submit">Salvar role</button></div>
+    </form>
+  </dialog>
+
   <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="{{ url_for('static', filename='js/elementar-manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/roles-manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager-ui.js') }}"></script>
   <script src="{{ url_for('static', filename='js/github-connector.js') }}"></script>
 </body>
