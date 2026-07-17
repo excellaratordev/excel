@@ -69,15 +69,33 @@
     requestAnimationFrame(renderAffected);
   }
 
-  function install(runtime) {
+  function activate(runtime) {
     activeRuntime = runtime;
     window.SuperExcelActiveRuntime = runtime;
+  }
+
+  function install(runtime) {
+    if (!activeRuntime) activate(runtime);
+
     for (const methodName of ['setCellContents', 'resumeEvaluation', 'undo', 'redo']) {
       const original = runtime[methodName]?.bind(runtime);
       if (!original) continue;
       runtime[methodName] = (...args) => {
         const result = original(...args);
-        scheduleRender();
+        if (runtime === activeRuntime) scheduleRender();
+        return result;
+      };
+    }
+
+    const originalDestroy = runtime.destroy?.bind(runtime);
+    if (originalDestroy) {
+      runtime.destroy = (...args) => {
+        const wasActive = runtime === activeRuntime;
+        const result = originalDestroy(...args);
+        if (wasActive) {
+          activeRuntime = null;
+          if (window.SuperExcelActiveRuntime === runtime) window.SuperExcelActiveRuntime = null;
+        }
         return result;
       };
     }
