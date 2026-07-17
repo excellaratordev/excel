@@ -116,6 +116,7 @@
 
     await loadScript('/static/js/grid/sparse-store.js');
     await loadScript('/static/js/grid/viewport.js');
+    await loadScript('/static/js/grid/interaction.js');
     if (!legacyCollaboration) {
       await loadScript('/static/js/collab-operation.js');
       await loadScript('/static/js/collab-operation-store.js');
