@@ -1,0 +1,132 @@
+.elementar-badge {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  margin: 5px 0 0;
+  border: 1px solid #a7d8ba;
+  border-radius: 999px;
+  background: #eef9f2;
+  color: #0b6b38;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: .03em;
+  text-transform: uppercase;
+}
+
+#new-elementar {
+  border-color: #8cc8a5;
+  background: #eef9f2;
+  color: #0b6b38;
+  font-weight: 700;
+}
+
+.elementar-create-dialog {
+  width: min(460px, calc(100vw - 28px));
+  border: 0;
+  border-radius: 14px;
+  padding: 0;
+  box-shadow: 0 24px 70px rgba(0,0,0,.25);
+}
+.elementar-create-dialog::backdrop { background: rgba(20,28,36,.48); }
+.elementar-create-dialog form { display: grid; gap: 14px; padding: 22px; }
+.elementar-create-dialog h2 { margin: 0; }
+.elementar-create-dialog p { margin: 0; color: #68707a; line-height: 1.5; }
+.elementar-create-dialog label { display: grid; gap: 6px; font-weight: 650; }
+.elementar-create-dialog input {
+  width: 100%;
+  border: 1px solid #d8dde3;
+  border-radius: 8px;
+  padding: 10px 11px;
+}
+.elementar-create-actions { display: flex; justify-content: end; gap: 8px; }
+.elementar-inline-error { min-height: 18px; color: #b42318 !important; font-size: 13px; }
+
+#elementar-mode-button.active {
+  border-color: rgba(255,255,255,.75);
+  background: white;
+  color: #0b5f31;
+  font-weight: 800;
+}
+#elementar-enable-button { font-weight: 700; }
+
+body.elementar-workbook main {
+  grid-template-rows: 46px auto 42px minmax(0, 1fr) 30px;
+}
+
+.elementar-panel {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(260px, 420px) auto;
+  align-items: center;
+  gap: 16px;
+  border-bottom: 1px solid #b7ddc5;
+  background: linear-gradient(90deg, #f1faf4, #fbfefc);
+  padding: 10px 14px;
+}
+.elementar-panel[hidden] { display: none; }
+.elementar-panel h2 { margin: 0 0 3px; font-size: 15px; color: #0b5f31; }
+.elementar-panel p { margin: 0; color: #53615a; font-size: 12px; line-height: 1.45; }
+.elementar-panel code {
+  border: 1px solid #c8e5d2;
+  border-radius: 6px;
+  background: white;
+  color: #0b5f31;
+  padding: 2px 5px;
+}
+.elementar-endpoint-block { min-width: 0; }
+.elementar-endpoint-label { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; color: #53615a; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+.elementar-version { border-radius: 999px; background: #dff2e6; color: #0b5f31; padding: 2px 7px; text-transform: none; }
+.elementar-endpoint {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  color: #1f2937;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.elementar-actions { display: flex; flex-wrap: wrap; justify-content: end; gap: 7px; }
+.elementar-status { grid-column: 1 / -1; min-height: 16px; color: #53615a; font-size: 11px; }
+.elementar-status.error { color: #b42318; font-weight: 700; }
+
+.elementar-dialog-body { padding: 18px 20px 22px; }
+.elementar-preview-code {
+  max-height: 54vh;
+  overflow: auto;
+  border: 1px solid #d8dde3;
+  border-radius: 10px;
+  background: #101820;
+  color: #d9fbe5;
+  padding: 16px;
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+  white-space: pre;
+}
+.elementar-preview-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 14px; }
+.elementar-preview-summary { color: #68707a; font-size: 13px; }
+.elementar-settings-grid { display: grid; gap: 14px; }
+.elementar-settings-grid label { display: grid; gap: 6px; font-weight: 650; }
+.elementar-settings-grid input,
+.elementar-settings-grid select {
+  width: 100%;
+  border: 1px solid #d8dde3;
+  border-radius: 8px;
+  background: white;
+  padding: 10px 11px;
+}
+.elementar-settings-help { margin: 0; color: #68707a; font-size: 13px; line-height: 1.5; }
+.elementar-settings-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 18px; }
+.elementar-danger { color: #b42318; border-color: #f0b4ae; }
+
+@media (max-width: 900px) {
+  .elementar-panel { grid-template-columns: 1fr auto; }
+  .elementar-endpoint-block { grid-column: 1 / -1; grid-row: 2; }
+  .elementar-status { grid-row: 3; }
+}
+
+@media (max-width: 680px) {
+  body.elementar-workbook main { grid-template-rows: 46px auto 42px minmax(0, 1fr) 30px; }
+  .elementar-panel { grid-template-columns: 1fr; max-height: 180px; overflow: auto; }
+  .elementar-endpoint-block, .elementar-actions, .elementar-status { grid-column: 1; grid-row: auto; }
+  .elementar-actions { justify-content: start; }
+}
