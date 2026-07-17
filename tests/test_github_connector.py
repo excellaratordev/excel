@@ -35,6 +35,10 @@ def authorize(monkeypatch) -> None:
     monkeypatch.setattr(backend, "verify_user_token", lambda token: (user, None))
 
 
+def test_secure_oauth_callback_replaces_legacy_callback():
+    assert app.view_functions["github_api.github_callback"] is github_oauth.secure_github_callback
+
+
 def test_accepts_only_html_inside_templates():
     assert github_connector._is_template_html("templates/index.html")
     assert github_connector._is_template_html("src/site/templates/admin/dashboard.HTML")
