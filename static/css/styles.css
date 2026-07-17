@@ -158,7 +158,19 @@ main { height: calc(100vh - 64px); display: grid; grid-template-rows: 46px 42px 
 .cell.formula-cell { color: #0b5f31; }
 .cell.error-cell { color: var(--danger); }
 .statusbar { justify-content: space-between; gap: 20px; padding: 0 10px; border-top: 1px solid var(--border); border-bottom: 0; color: var(--muted); font-size: 12px; }
+.statusbar > span { min-width: 0; }
 .statusbar .error { color: var(--danger); font-weight: 600; }
+#selection-summary { flex: 1; overflow: hidden; text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar-runtime { display: inline-flex; align-items: center; justify-content: flex-end; gap: 10px; white-space: nowrap; }
+.memory-usage {
+  color: var(--green-dark);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.memory-usage[data-memory-state="warning"] { color: #8a6100; }
+.memory-usage[data-memory-state="danger"] { color: var(--danger); }
+.memory-usage[data-memory-state="unsupported"],
+.memory-usage[data-memory-state="pending"] { color: var(--muted); font-weight: 600; }
 
 .dialog { width: min(920px, calc(100vw - 32px)); max-height: 82vh; border: 0; border-radius: 12px; padding: 0; box-shadow: 0 24px 70px rgba(0,0,0,.25); }
 .dialog::backdrop { background: rgba(20,28,36,.48); }
@@ -187,5 +199,7 @@ main { height: calc(100vh - 64px); display: grid; grid-template-rows: 46px 42px 
   main { height: calc(100vh - 105px); }
   .toolbar { overflow-x: auto; }
   .functions-list { grid-template-columns: 1fr; }
-  .statusbar span:last-child { display: none; }
+  .runtime-label { display: none; }
+  .statusbar { gap: 10px; }
+  .memory-usage { font-size: 11px; }
 }

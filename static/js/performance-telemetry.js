@@ -3,9 +3,11 @@
 
   const root = document.documentElement;
   const workbookId = Number(root.dataset.workbookId || 0);
-  if (!workbookId) return;
-
+  const memoryDisplay = document.querySelector('#memory-usage');
   const SAMPLE_INTERVAL_MS = 15000;
+  const MEMORY_DISPLAY_INTERVAL_MS = 1000;
+  const DETAILED_MEMORY_REFRESH_MS = 10000;
+  const MEBIBYTE = 1024 * 1024;
   const changedValues = new Map();
   let initialPayload = null;
   let sparseValues = null;
@@ -13,6 +15,8 @@
   let formulaCells = 0;
   let sendTimer = null;
   let sending = false;
+  let latestMemorySnapshot = null;
+  let detailedMeasurementPromise = null;
 
   function isFilled(value) {
     return value !== null && value !== undefined && value !== '';
@@ -20,6 +24,106 @@
 
   function isFormula(value) {
     return typeof value === 'string' && value.trimStart().startsWith('=');
+  }
+
+  function finitePositive(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  }
+
+  function directMemorySnapshot() {
+    const memory = performance.memory;
+    const usedBytes = finitePositive(memory?.usedJSHeapSize);
+    if (usedBytes === null) return null;
+    return {
+      usedBytes,
+      totalBytes: finitePositive(memory?.totalJSHeapSize),
+      limitBytes: finitePositive(memory?.jsHeapSizeLimit),
+      source: 'performance.memory',
+      measuredAt: Date.now(),
+    };
+  }
+
+  async function detailedMemorySnapshot() {
+    const direct = directMemorySnapshot();
+    if (direct) {
+      latestMemorySnapshot = direct;
+      return direct;
+    }
+
+    if (latestMemorySnapshot && Date.now() - latestMemorySnapshot.measuredAt < DETAILED_MEMORY_REFRESH_MS) {
+      return latestMemorySnapshot;
+    }
+
+    if (!window.crossOriginIsolated || typeof performance.measureUserAgentSpecificMemory !== 'function') return null;
+    if (detailedMeasurementPromise) return detailedMeasurementPromise;
+
+    detailedMeasurementPromise = performance.measureUserAgentSpecificMemory()
+      .then(result => {
+        const usedBytes = finitePositive(result?.bytes);
+        if (usedBytes === null) return null;
+        latestMemorySnapshot = {
+          usedBytes,
+          totalBytes: null,
+          limitBytes: null,
+          source: 'measureUserAgentSpecificMemory',
+          measuredAt: Date.now(),
+        };
+        return latestMemorySnapshot;
+      })
+      .catch(error => {
+        console.debug('Medição detalhada de memória indisponível.', error);
+        return null;
+      })
+      .finally(() => {
+        detailedMeasurementPromise = null;
+      });
+
+    return detailedMeasurementPromise;
+  }
+
+  function formatMemory(bytes) {
+    const megabytes = Math.max(0, Number(bytes) || 0) / MEBIBYTE;
+    const maximumFractionDigits = megabytes < 100 ? 1 : 0;
+    return `${new Intl.NumberFormat('pt-BR', { maximumFractionDigits, minimumFractionDigits: megabytes < 10 ? 1 : 0 }).format(megabytes)} MB`;
+  }
+
+  function memoryState(snapshot) {
+    if (!snapshot) return 'unsupported';
+    if (!snapshot.limitBytes) return 'normal';
+    const ratio = snapshot.usedBytes / snapshot.limitBytes;
+    if (ratio >= 0.75) return 'danger';
+    if (ratio >= 0.5) return 'warning';
+    return 'normal';
+  }
+
+  function renderMemory(snapshot) {
+    if (!memoryDisplay) return;
+    if (!snapshot) {
+      memoryDisplay.textContent = 'RAM: n/d';
+      memoryDisplay.dataset.memoryState = 'unsupported';
+      memoryDisplay.title = 'Este navegador não disponibiliza uma medição confiável da memória usada pela aba.';
+      memoryDisplay.setAttribute('aria-label', 'Uso de memória RAM indisponível neste navegador');
+      return;
+    }
+
+    const formattedUsed = formatMemory(snapshot.usedBytes);
+    memoryDisplay.textContent = `RAM: ${formattedUsed}`;
+    memoryDisplay.dataset.memoryState = memoryState(snapshot);
+    const limitText = snapshot.limitBytes ? ` de ${formatMemory(snapshot.limitBytes)} disponíveis para o heap` : '';
+    const sourceText = snapshot.source === 'performance.memory'
+      ? 'Memória JavaScript usada pela aba da planilha'
+      : 'Memória atribuída pelo navegador à aba da planilha';
+    memoryDisplay.title = `${sourceText}: ${formattedUsed}${limitText}. Atualização a cada segundo.`;
+    memoryDisplay.setAttribute('aria-label', `Uso de memória RAM da planilha: ${formattedUsed}`);
+  }
+
+  async function updateMemoryDisplay() {
+    const snapshot = await detailedMemorySnapshot();
+    renderMemory(snapshot);
+    if (snapshot) {
+      window.dispatchEvent(new CustomEvent('superexcel:memory', { detail: { ...snapshot } }));
+    }
   }
 
   function initializeCounts() {
@@ -79,7 +183,7 @@
 
   function collectMetrics() {
     initializeCounts();
-    const memory = performance.memory || {};
+    const memory = directMemorySnapshot() || latestMemorySnapshot || {};
     const gridSize = window.SuperExcelGridSize || {};
     const rows = Math.max(0, Number(gridSize.rows || initialPayload?.rows || 0));
     const cols = Math.max(0, Number(gridSize.cols || initialPayload?.cols || 0));
@@ -102,15 +206,15 @@
       if (Number.isFinite(runtimeStats[key])) result[key] = runtimeStats[key];
     }
 
-    if (Number.isFinite(memory.usedJSHeapSize)) result.heap_used_bytes = memory.usedJSHeapSize;
-    if (Number.isFinite(memory.totalJSHeapSize)) result.heap_total_bytes = memory.totalJSHeapSize;
-    if (Number.isFinite(memory.jsHeapSizeLimit)) result.heap_limit_bytes = memory.jsHeapSizeLimit;
+    if (Number.isFinite(memory.usedBytes)) result.heap_used_bytes = memory.usedBytes;
+    if (Number.isFinite(memory.totalBytes)) result.heap_total_bytes = memory.totalBytes;
+    if (Number.isFinite(memory.limitBytes)) result.heap_limit_bytes = memory.limitBytes;
     if (Number.isFinite(navigator.deviceMemory)) result.device_memory_gb = navigator.deviceMemory;
     return result;
   }
 
   async function send() {
-    if (sending || document.hidden || !navigator.onLine) return;
+    if (!workbookId || sending || document.hidden || !navigator.onLine) return;
     sending = true;
     try {
       const metrics = collectMetrics();
@@ -135,19 +239,41 @@
   }
 
   function scheduleSoon() {
+    if (!workbookId) return;
     clearTimeout(sendTimer);
     sendTimer = window.setTimeout(send, 1000);
   }
 
+  window.SuperExcelMemoryMonitor = {
+    formatMemory,
+    read: directMemorySnapshot,
+    refresh: updateMemoryDisplay,
+  };
+
+  updateMemoryDisplay();
+  window.setInterval(() => {
+    if (!document.hidden) updateMemoryDisplay();
+  }, MEMORY_DISPLAY_INTERVAL_MS);
+
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      updateMemoryDisplay();
+      scheduleSoon();
+    }
+  });
+
+  if (!workbookId) return;
+
   window.addEventListener('superexcel:changes', event => {
     applyChanges(event.detail?.changes);
+    updateMemoryDisplay();
     scheduleSoon();
   });
-  window.addEventListener('superexcel:calculation-runtime', scheduleSoon);
-  window.addEventListener('online', scheduleSoon);
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) scheduleSoon();
+  window.addEventListener('superexcel:calculation-runtime', () => {
+    updateMemoryDisplay();
+    scheduleSoon();
   });
+  window.addEventListener('online', scheduleSoon);
 
   Promise.resolve(window.SuperExcelAuth?.ready)
     .catch(() => null)
