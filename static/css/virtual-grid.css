@@ -5,7 +5,9 @@
   min-height: 100%;
   contain: strict;
   background: #fff;
+  outline: none;
 }
+.spreadsheet.virtual-grid:focus { outline: none; }
 .virtual-grid-canvas { position: relative; }
 .virtual-grid-layer { position: absolute; inset: 0; pointer-events: none; }
 .virtual-grid-cell,
@@ -43,12 +45,25 @@
 .virtual-grid-row-header { width: var(--row-header-width); height: 26px; left: 0; }
 .virtual-grid-col-header { width: var(--cell-width); height: 28px; top: 0; }
 .virtual-grid-corner { width: var(--row-header-width); height: 28px; left: 0; top: 0; z-index: 6; }
-.virtual-grid-cell.selected { box-shadow: inset 0 0 0 2px var(--green); z-index: 3; overflow: visible; }
+.virtual-grid-cell.selected {
+  box-shadow: inset 0 0 0 2px var(--green);
+  z-index: 3;
+  overflow: hidden;
+}
+.virtual-grid-cell.selected::after,
+.virtual-grid-cell.selection-anchor::after {
+  content: none;
+  display: none;
+}
 .virtual-grid-cell.range-selected { background: var(--green-soft); }
-.virtual-grid-cell.selection-anchor { background: #fff; box-shadow: inset 0 0 0 2px var(--green); }
+.virtual-grid-cell.selection-anchor {
+  background: #fff;
+  box-shadow: inset 0 0 0 2px var(--green);
+  z-index: 3;
+}
 .virtual-grid-cell.formula-cell { color: #0b5f31; }
 .virtual-grid-cell.error-cell { color: var(--danger); }
-.virtual-grid-cell.editing { white-space: pre; overflow: visible; box-shadow: inset 0 0 0 2px var(--green); z-index: 5; }
+.virtual-grid-cell.editing { white-space: pre; overflow: hidden; box-shadow: inset 0 0 0 2px var(--green); z-index: 5; }
 .virtual-grid-cell.range-top { border-top: 2px solid var(--green); }
 .virtual-grid-cell.range-bottom { border-bottom: 2px solid var(--green); }
 .virtual-grid-cell.range-left { border-left: 2px solid var(--green); }
