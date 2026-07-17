@@ -26,6 +26,8 @@ create table if not exists public.elementar_dependencies (
   left_col integer not null check (left_col >= 0),
   right_col integer not null check (right_col >= left_col),
   definition_revision bigint not null check (definition_revision > 0),
+  last_value jsonb,
+  last_source_revision bigint not null default 0 check (last_source_revision >= 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   constraint elementar_dependencies_key_unique unique (elementar_workbook_id, declaration_key)
