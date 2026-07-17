@@ -26,6 +26,7 @@ from backend import (
     db,
     protect_api_routes,
 )
+from base_elementar_automation import install as install_base_elementar_automation
 from base_routes import base_api
 from collaboration_routes import collaboration_api
 from elementar_automation_values import install as install_elementar_value_reuse
@@ -46,12 +47,15 @@ MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
 
 workbook_routes.empty_workbook = compact_empty_workbook
 install_elementar_value_reuse(elementar_automation_routes)
+elementar_routes.MAX_SOURCE_ROW = 5000
+elementar_routes.MAX_SOURCE_CELLS = 100_000
 install_elementar_realtime_delivery(elementar_routes, github_sites)
 install_secure_connector()
 
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_WORKBOOK_BYTES + 512 * 1024
+install_base_elementar_automation(app)
 # Public HTML subdomains must be dispatched before the main application auth guard.
 install_github_site_hosting(app)
 app.before_request(protect_api_routes)
