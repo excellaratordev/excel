@@ -24,6 +24,7 @@ from backend import (
     protect_api_routes,
 )
 from collaboration_routes import collaboration_api
+from elementar_automation_routes import elementar_automation_api
 from elementar_routes import elementar_api
 from files_routes import files_api
 from github_connector import github_api
@@ -58,6 +59,7 @@ app.register_blueprint(roles_api)
 app.register_blueprint(snapshot_api)
 app.register_blueprint(telemetry_api)
 app.register_blueprint(elementar_api)
+app.register_blueprint(elementar_automation_api)
 app.register_blueprint(github_oauth_api)
 app.register_blueprint(github_api)
 app.register_blueprint(github_sites_api)
