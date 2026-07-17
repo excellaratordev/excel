@@ -7,6 +7,9 @@ ALL_CAPABILITIES = frozenset({
     "project.view",
     "project.rename",
     "project.delete",
+    "folder.create",
+    "folder.move",
+    "folder.delete",
     "workbook.create",
     "workbook.view",
     "workbook.edit",
@@ -22,6 +25,8 @@ ALL_CAPABILITIES = frozenset({
     "formula.edit",
     "format.edit",
     "structure.edit",
+    "variables.view",
+    "variables.edit",
     "data.import",
     "data.export",
     "history.view",
@@ -47,11 +52,14 @@ _VIEWER = frozenset({
     "project.view",
     "workbook.view",
     "sheet.view",
+    "variables.view",
     "history.view",
     "telemetry.view",
 })
 
 _EDITOR = _VIEWER | frozenset({
+    "folder.create",
+    "folder.move",
     "workbook.create",
     "workbook.edit",
     "workbook.rename",
@@ -64,6 +72,7 @@ _EDITOR = _VIEWER | frozenset({
     "formula.edit",
     "format.edit",
     "structure.edit",
+    "variables.edit",
     "data.import",
     "data.export",
     "automation.view",
@@ -72,6 +81,7 @@ _EDITOR = _VIEWER | frozenset({
 
 _ADMIN = _EDITOR | frozenset({
     "project.rename",
+    "folder.delete",
     "workbook.delete",
     "history.restore",
     "automation.edit",
