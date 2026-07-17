@@ -26,6 +26,7 @@ from backend import (
     db,
     protect_api_routes,
 )
+from base_routes import base_api
 from collaboration_routes import collaboration_api
 from elementar_automation_values import install as install_elementar_value_reuse
 from elementar_realtime_delivery import install as install_elementar_realtime_delivery
@@ -58,6 +59,7 @@ app.register_blueprint(assets_api)
 app.register_blueprint(projects_api)
 app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
+app.register_blueprint(base_api)
 app.register_blueprint(collaboration_api)
 app.register_blueprint(recovery_api)
 app.register_blueprint(roles_api)
@@ -105,6 +107,11 @@ def sheet_redirect():
 @app.get("/sheet/<int:workbook_id>")
 def sheet_page(workbook_id: int):
     return render_template("index.html", preload_workbook_id=workbook_id)
+
+
+@app.get("/base/<int:workbook_id>")
+def base_page(workbook_id: int):
+    return render_template("base.html", preload_workbook_id=workbook_id)
 
 
 @app.get("/api/auth/config")
