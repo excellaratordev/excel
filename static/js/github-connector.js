@@ -8,9 +8,54 @@
     role: 'viewer',
     connection: null,
     files: [],
+    site: null,
+    siteFiles: new Map(),
     loading: false,
     reloadTimer: null,
   };
+
+  function installSiteStyles() {
+    if (document.querySelector('link[data-github-sites-styles]')) return;
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = '/static/css/github-sites.css';
+    link.dataset.githubSitesStyles = 'true';
+    document.head.append(link);
+  }
+
+  function ensureSiteUi() {
+    installSiteStyles();
+    const connected = $('#github-connected');
+    const actions = connected?.querySelector('.integration-actions');
+    if (!connected || !actions) return;
+
+    if (!$('#github-open-site')) {
+      const open = document.createElement('a');
+      open.id = 'github-open-site';
+      open.className = 'github-open-site';
+      open.target = '_blank';
+      open.rel = 'noopener noreferrer';
+      open.textContent = 'Abrir site ↗';
+      open.hidden = true;
+      actions.prepend(open);
+    }
+
+    if (!$('#github-site-panel')) {
+      const panel = document.createElement('div');
+      panel.id = 'github-site-panel';
+      panel.className = 'github-site-panel';
+      panel.hidden = true;
+      panel.innerHTML = `
+        <div class="github-site-copy">
+          <span>Site publicado</span>
+          <a id="github-site-url" href="#" target="_blank" rel="noopener noreferrer"></a>
+          <small id="github-site-detail"></small>
+        </div>
+        <span id="github-site-badge" class="github-site-badge"></span>
+      `;
+      actions.insertAdjacentElement('afterend', panel);
+    }
+  }
 
   async function api(url, options = {}) {
     const response = await fetch(url, {
@@ -59,23 +104,58 @@
     element.className = `integration-message${type ? ` ${type}` : ''}`;
   }
 
+  function renderSite() {
+    ensureSiteUi();
+    const panel = $('#github-site-panel');
+    const open = $('#github-open-site');
+    const url = $('#github-site-url');
+    const detail = $('#github-site-detail');
+    const badge = $('#github-site-badge');
+    if (!panel || !open || !url || !detail || !badge) return;
+
+    const site = state.site;
+    panel.hidden = !site;
+    open.hidden = !site?.open_url;
+    if (!site) return;
+
+    open.href = site.open_url;
+    url.href = site.open_url;
+    url.textContent = site.public_url || site.preview_url;
+    if (site.domain_configured) {
+      badge.textContent = 'Subdomínio ativo';
+      badge.className = 'github-site-badge';
+      detail.textContent = `Página inicial: ${site.entry_path || 'primeiro HTML sincronizado'}. Atualiza junto com o GitHub.`;
+    } else {
+      badge.textContent = 'Prévia disponível';
+      badge.className = 'github-site-badge preview';
+      detail.textContent = 'O HTML já abre em prévia isolada. O subdomínio será usado automaticamente após configurar o domínio wildcard.';
+    }
+  }
+
   function renderFiles() {
     const list = $('#github-files-list');
     const count = $('#github-file-count');
     if (!list || !count) return;
     count.textContent = `${state.files.length} HTML${state.files.length === 1 ? '' : 's'}`;
     list.innerHTML = state.files.length
-      ? state.files.map(file => `
-          <div class="github-file-row">
-            <div>
-              <strong>${escapeHtml(file.name)}</strong>
-              <span>${escapeHtml(file.path)}</span>
+      ? state.files.map(file => {
+          const published = state.siteFiles.get(String(file.id));
+          const openLink = published?.open_url
+            ? `<a class="github-file-open" href="${escapeHtml(published.open_url)}" target="_blank" rel="noopener noreferrer" title="Abrir ${escapeHtml(file.name)}">Abrir ↗</a>`
+            : '<span></span>';
+          return `
+            <div class="github-file-row">
+              <div>
+                <strong>${escapeHtml(file.name)}</strong>
+                <span>${escapeHtml(published?.site_path || file.path)}</span>
+              </div>
+              <span>${formatBytes(file.size_bytes)}</span>
+              <code>${escapeHtml(String(file.commit_sha || '').slice(0, 8))}</code>
+              <span>${escapeHtml(formatDate(file.synced_at))}</span>
+              ${openLink}
             </div>
-            <span>${formatBytes(file.size_bytes)}</span>
-            <code>${escapeHtml(String(file.commit_sha || '').slice(0, 8))}</code>
-            <span>${escapeHtml(formatDate(file.synced_at))}</span>
-          </div>
-        `).join('')
+          `;
+        }).join('')
       : '<div class="empty-row github-empty">Nenhum HTML encontrado dentro de uma pasta templates.</div>';
   }
 
@@ -83,6 +163,8 @@
     state.connection = data.connection;
     state.files = data.files || [];
     state.role = data.role || state.role;
+    state.site = data.site || null;
+    state.siteFiles = new Map((data.siteFiles || []).map(file => [String(file.id), file]));
 
     const disconnected = $('#github-disconnected');
     const connected = $('#github-connected');
@@ -100,6 +182,7 @@
     disconnectButton.disabled = !hasRole('admin') || !state.connection;
 
     if (!state.connection) {
+      renderSite();
       renderFiles();
       return;
     }
@@ -118,8 +201,11 @@
       : '—';
 
     if (state.connection.last_error) setMessage(state.connection.last_error, 'error');
-    else setMessage('Somente arquivos .html dentro de pastas templates são sincronizados.', 'success');
+    else if (data.siteError) setMessage(data.siteError, 'error');
+    else if (state.site?.domain_configured) setMessage('HTMLs sincronizados e publicados no subdomínio do projeto.', 'success');
+    else setMessage('HTMLs sincronizados e disponíveis para abrir em prévia isolada. Falta somente o domínio wildcard para o subdomínio público.', 'success');
 
+    renderSite();
     renderFiles();
   }
 
@@ -131,8 +217,17 @@
     state.loading = true;
     try {
       const data = await api(`/api/github/connection?project_id=${state.projectId}`);
+      let siteData = { site: null, files: [] };
+      let siteError = '';
+      if (data.connection) {
+        try {
+          siteData = await api(`/api/github/site?project_id=${state.projectId}`);
+        } catch (error) {
+          siteError = error.message;
+        }
+      }
       if (state.projectId !== projectContext().projectId) return;
-      renderConnection(data);
+      renderConnection({ ...data, site: siteData.site, siteFiles: siteData.files, siteError });
     } catch (error) {
       setMessage(error.message, 'error');
     } finally {
@@ -174,13 +269,13 @@
   $('#github-sync').onclick = async () => {
     const button = $('#github-sync');
     button.disabled = true;
-    setMessage('Sincronizando os HTMLs do repositório...');
+    setMessage('Sincronizando e publicando os HTMLs do repositório...');
     try {
       const result = await api('/api/github/sync', {
         method: 'POST',
         body: JSON.stringify({ project_id: state.projectId }),
       });
-      setMessage(`${result.files} HTMLs sincronizados.`, 'success');
+      setMessage(`${result.files} HTMLs sincronizados e publicados.`, 'success');
       await loadConnection();
     } catch (error) {
       setMessage(error.message, 'error');
@@ -190,7 +285,7 @@
   };
 
   $('#github-disconnect').onclick = async () => {
-    if (!window.confirm('Desconectar este repositório do projeto? Os HTMLs importados também serão removidos.')) return;
+    if (!window.confirm('Desconectar este repositório do projeto? Os HTMLs importados e o subdomínio também serão removidos.')) return;
     const button = $('#github-disconnect');
     button.disabled = true;
     try {
@@ -198,7 +293,7 @@
         method: 'DELETE',
         body: JSON.stringify({ project_id: state.projectId }),
       });
-      setMessage('Repositório desconectado.', 'success');
+      setMessage('Repositório e site desconectados.', 'success');
       await loadConnection();
     } catch (error) {
       setMessage(error.message, 'error');
@@ -220,10 +315,11 @@
   if (params.has('github') || params.has('github_error')) {
     const nav = document.querySelector('.nav[data-view="github"]');
     nav?.click();
-    if (params.get('github') === 'connected') setMessage('GitHub conectado e sincronizado.', 'success');
+    if (params.get('github') === 'connected') setMessage('GitHub conectado, sincronizado e publicado.', 'success');
     if (params.get('github_error')) setMessage(params.get('github_error'), 'error');
     window.history.replaceState({}, '', '/files');
   }
 
+  ensureSiteUi();
   window.SuperExcelAuth.ready.then(scheduleLoad).catch(error => setMessage(error.message, 'error'));
 })();

@@ -28,6 +28,7 @@ from elementar_routes import elementar_api
 from files_routes import files_api
 from github_connector import github_api
 from github_oauth import github_oauth_api, install_secure_connector, secure_github_callback
+from github_sites import github_sites_api, install_github_site_hosting
 from projects_routes import projects_api
 from recovery_routes import recovery_api
 from roles_routes import roles_api
@@ -44,6 +45,8 @@ install_secure_connector()
 app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_WORKBOOK_BYTES + 512 * 1024
+# Public HTML subdomains must be dispatched before the main application auth guard.
+install_github_site_hosting(app)
 app.before_request(protect_api_routes)
 app.register_blueprint(assets_api)
 app.register_blueprint(projects_api)
@@ -57,6 +60,7 @@ app.register_blueprint(telemetry_api)
 app.register_blueprint(elementar_api)
 app.register_blueprint(github_oauth_api)
 app.register_blueprint(github_api)
+app.register_blueprint(github_sites_api)
 app.view_functions["github_api.github_callback"] = secure_github_callback
 
 
