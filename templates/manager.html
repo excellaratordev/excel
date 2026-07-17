@@ -3,134 +3,171 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Super Excel — Projetos</title>
+  <meta name="description" content="Organize projetos, planilhas, pastas, variáveis e acessos no Super Excel.">
+  <title>Super Excel — Arquivos</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/invite-controls.css') }}">
 </head>
 <body class="auth-pending">
   <header class="manager-topbar">
-    <div class="brand-block"><strong>Super Excel</strong><span>Projetos compartilhados</span></div>
+    <a class="brand-block" href="/files" aria-label="Super Excel — início">
+      <span class="brand-mark" aria-hidden="true">S</span>
+      <span class="brand-copy"><strong>Super Excel</strong><small>Workspace empresarial</small></span>
+    </a>
+
     <div class="project-switcher">
-      <label for="project-select">Projeto</label>
-      <select id="project-select" aria-label="Projeto atual"></select>
-      <span id="project-role" class="role-badge"></span>
-      <button id="new-project" type="button">Novo projeto</button>
-      <button id="rename-project" type="button">Renomear</button>
+      <div class="project-select-wrap">
+        <label for="project-select">Projeto atual</label>
+        <div class="select-shell">
+          <select id="project-select" aria-label="Projeto atual"></select>
+          <span id="project-role" class="role-badge"></span>
+        </div>
+      </div>
+      <div class="project-actions" aria-label="Ações do projeto">
+        <button id="new-project" class="icon-text-button" type="button"><span aria-hidden="true">＋</span>Novo projeto</button>
+        <button id="rename-project" class="icon-button" type="button" title="Renomear projeto" aria-label="Renomear projeto">✎</button>
+      </div>
     </div>
+
     <div class="actions">
-      <button id="new-folder" type="button">Nova pasta</button>
-      <button id="new-sheet" class="primary" type="button">Nova planilha</button>
+      <button id="new-folder" class="secondary-action" type="button"><span aria-hidden="true">＋</span>Pasta</button>
+      <button id="new-sheet" class="primary" type="button"><span aria-hidden="true">＋</span>Nova planilha</button>
       <div class="auth-user">
         <img class="auth-avatar" data-auth-avatar src="" alt="">
         <div class="auth-user-text"><strong data-auth-name>Conta Google</strong><span data-auth-email></span></div>
-        <button class="auth-signout" type="button" data-auth-signout>Sair</button>
+        <button class="auth-signout" type="button" data-auth-signout title="Sair">Sair</button>
       </div>
     </div>
   </header>
+
   <main class="manager-layout">
-    <aside>
-      <button class="nav active" data-view="files">📁 Arquivos</button>
-      <button class="nav" data-view="variables">🔗 Variáveis externas</button>
-      <button class="nav" data-view="members">👥 Membros do projeto</button>
-      <button class="nav" data-view="github">🐙 GitHub</button>
+    <aside class="manager-sidebar">
+      <div class="sidebar-project-card">
+        <span class="sidebar-label">Workspace</span>
+        <strong id="workspace-project-name">Projeto</strong>
+        <span id="workspace-project-role">Carregando acesso</span>
+      </div>
+
+      <nav class="sidebar-nav" aria-label="Navegação do projeto">
+        <span class="sidebar-label">Navegação</span>
+        <button class="nav active" data-view="files" type="button"><span class="nav-icon" aria-hidden="true">▦</span><span>Arquivos</span></button>
+        <button class="nav" data-view="variables" type="button"><span class="nav-icon" aria-hidden="true">⌁</span><span>Variáveis externas</span></button>
+        <button class="nav" data-view="members" type="button"><span class="nav-icon" aria-hidden="true">◎</span><span>Membros e acessos</span></button>
+        <button class="nav" data-view="github" type="button"><span class="nav-icon" aria-hidden="true">⌘</span><span>GitHub</span></button>
+      </nav>
+
+      <div class="sidebar-tip">
+        <span class="tip-icon" aria-hidden="true">↕</span>
+        <div><strong>Organização rápida</strong><p>Arraste planilhas e pastas para mudar a estrutura do projeto.</p></div>
+      </div>
     </aside>
+
     <section class="content">
       <p data-auth-error class="error-text"></p>
+
       <div id="files-view" class="view active">
-        <div class="breadcrumb">
-          <button id="root-button" title="Abra a raiz ou solte um item aqui">Início</button>
-          <span id="current-folder"></span>
-          <span class="drag-hint">Arraste planilhas e pastas para organizá-las</span>
-        </div>
-        <div id="items" class="items"></div>
-      </div>
-      <div id="variables-view" class="view">
-        <div class="section-head">
-          <div><h2>Variáveis externas</h2><p>Valores compartilhados por todos os membros deste projeto.</p></div>
-          <button id="new-variable" class="primary" type="button">Nova variável</button>
-        </div>
-        <div id="variables-list" class="table-list"></div>
-      </div>
-      <div id="members-view" class="view">
-        <div class="section-head">
-          <div><h2>Membros do projeto</h2><p>Convide uma pessoa por Gmail ou gere um link pronto para copiar.</p></div>
-          <div class="section-actions">
-            <button id="new-invite" type="button">Copiar link de convite</button>
-            <button id="new-member" class="primary" type="button">Adicionar por Gmail</button>
-          </div>
-        </div>
-        <div class="notice"><strong>Link de convite:</strong> abre o login do Super Excel e adiciona automaticamente a primeira conta Google que o utilizar. O link é de uso único e expira.</div>
-        <div id="members-list" class="table-list"></div>
-      </div>
-      <div id="github-view" class="view">
-        <div class="section-head">
+        <header class="page-heading">
           <div>
-            <h2>Conector GitHub</h2>
-            <p>Espelha automaticamente os arquivos HTML encontrados dentro de pastas <code>templates</code>.</p>
+            <span class="eyebrow">Projeto compartilhado</span>
+            <h1>Arquivos</h1>
+            <p id="files-context">Centralize planilhas, pastas e recursos do projeto.</p>
           </div>
-        </div>
-
-        <p id="github-message" class="integration-message"></p>
-
-        <div id="github-unconfigured" class="notice" hidden>
-          O GitHub App do Super Excel ainda não foi configurado no servidor.
-        </div>
-
-        <section id="github-disconnected" class="integration-card">
-          <div class="integration-card-head">
-            <div>
-              <h3>Conectar um repositório</h3>
-              <p>O GitHub será aberto para instalar o aplicativo somente no repositório escolhido.</p>
-            </div>
-            <span class="integration-badge">GitHub App</span>
+          <div class="page-heading-actions">
+            <button class="secondary-action mobile-create-folder" type="button" data-proxy-click="new-folder"><span aria-hidden="true">＋</span>Pasta</button>
+            <button class="primary mobile-create-sheet" type="button" data-proxy-click="new-sheet"><span aria-hidden="true">＋</span>Nova planilha</button>
           </div>
-          <div class="integration-form">
-            <label>
-              Repositório
-              <input id="github-repository-input" placeholder="empresa/projeto" autocomplete="off">
-            </label>
-            <label>
-              Branch
-              <input id="github-branch-input" placeholder="main (opcional)" autocomplete="off">
-            </label>
-            <button id="github-connect" class="primary" type="button">Conectar GitHub</button>
-          </div>
-          <p class="form-help">Apenas <code>.html</code> dentro de qualquer pasta chamada <code>templates</code> será importado. Push e merge na branch monitorada atualizam os arquivos.</p>
+        </header>
+
+        <section class="overview-grid" aria-label="Resumo dos arquivos">
+          <article class="overview-card"><span class="overview-icon folder-tone" aria-hidden="true">▰</span><div><span>Pastas nesta área</span><strong id="folder-count">0</strong></div></article>
+          <article class="overview-card"><span class="overview-icon sheet-tone" aria-hidden="true">▦</span><div><span>Planilhas nesta área</span><strong id="workbook-count">0</strong></div></article>
+          <article class="overview-card role-overview"><span class="overview-icon role-tone" aria-hidden="true">✓</span><div><span>Seu nível de acesso</span><strong id="overview-role">Conectando</strong></div></article>
         </section>
 
-        <section id="github-connected" class="integration-card" hidden>
-          <div class="integration-card-head">
-            <div>
-              <h3><a id="github-repository-link" href="#" target="_blank" rel="noopener"><span id="github-repository"></span></a></h3>
-              <p>Branch <strong id="github-branch"></strong></p>
+        <section class="file-explorer">
+          <div class="explorer-topline">
+            <div class="breadcrumb" aria-label="Localização atual">
+              <button id="root-button" class="breadcrumb-home" title="Abra a raiz ou solte um item aqui" type="button"><span aria-hidden="true">⌂</span>Início</button>
+              <span id="current-folder"></span>
             </div>
-            <span id="github-status" class="integration-badge"></span>
+            <span class="drag-hint">Arraste para reorganizar</span>
           </div>
-          <div class="integration-stats">
-            <div><span>Última sincronização</span><strong id="github-last-sync"></strong></div>
-            <div><span>Commit</span><code id="github-last-sha"></code></div>
-            <div><span>Arquivos</span><strong id="github-file-count">0 HTMLs</strong></div>
+
+          <div class="file-toolbar">
+            <label class="search-box" for="file-search">
+              <span aria-hidden="true">⌕</span>
+              <input id="file-search" type="search" placeholder="Buscar pasta ou planilha" autocomplete="off">
+              <kbd>/</kbd>
+            </label>
+            <div class="file-toolbar-actions">
+              <label class="sort-control" for="file-sort"><span>Ordenar</span><select id="file-sort"><option value="type">Pastas primeiro</option><option value="name">Nome</option><option value="updated">Atualização recente</option></select></label>
+              <div class="layout-toggle" aria-label="Modo de visualização">
+                <button id="view-grid" type="button" title="Visualização em grade" aria-pressed="true">▦</button>
+                <button id="view-list" type="button" title="Visualização em lista" aria-pressed="false">☷</button>
+              </div>
+            </div>
           </div>
-          <div class="integration-actions">
-            <button id="github-sync" class="primary" type="button">Sincronizar agora</button>
-            <button id="github-disconnect" class="danger-action" type="button">Desconectar</button>
-          </div>
-          <div id="github-files-list" class="github-files-list"></div>
+
+          <div class="items-heading"><strong>Conteúdo</strong><span id="visible-count">0 itens</span></div>
+          <div id="items" class="items" data-layout="grid"></div>
         </section>
+      </div>
+
+      <div id="variables-view" class="view">
+        <div class="section-panel">
+          <div class="section-head">
+            <div><span class="eyebrow">Dados compartilhados</span><h2>Variáveis externas</h2><p>Valores reutilizáveis por planilhas e automações do projeto.</p></div>
+            <button id="new-variable" class="primary" type="button">＋ Nova variável</button>
+          </div>
+          <div id="variables-list" class="table-list"></div>
+        </div>
+      </div>
+
+      <div id="members-view" class="view">
+        <div class="section-panel">
+          <div class="section-head">
+            <div><span class="eyebrow">Equipe do projeto</span><h2>Membros e acessos</h2><p>Convide pessoas e controle o nível de acesso ao workspace.</p></div>
+            <div class="section-actions"><button id="new-invite" type="button">Copiar convite</button><button id="new-member" class="primary" type="button">＋ Adicionar membro</button></div>
+          </div>
+          <div class="notice"><strong>Convite por link</strong><span>O link adiciona automaticamente a primeira conta Google que o utilizar e expira no prazo escolhido.</span></div>
+          <div id="members-list" class="table-list"></div>
+        </div>
+      </div>
+
+      <div id="github-view" class="view">
+        <div class="section-panel">
+          <div class="section-head"><div><span class="eyebrow">Integração de código</span><h2>Conector GitHub</h2><p>Espelhe arquivos HTML encontrados em pastas <code>templates</code>.</p></div></div>
+          <p id="github-message" class="integration-message"></p>
+          <div id="github-unconfigured" class="notice" hidden><strong>Integração indisponível</strong><span>O GitHub App do Super Excel ainda não foi configurado no servidor.</span></div>
+          <section id="github-disconnected" class="integration-card">
+            <div class="integration-card-head"><div><h3>Conectar um repositório</h3><p>Instale o aplicativo somente no repositório que deseja sincronizar.</p></div><span class="integration-badge">GitHub App</span></div>
+            <div class="integration-form"><label>Repositório<input id="github-repository-input" placeholder="empresa/projeto" autocomplete="off"></label><label>Branch<input id="github-branch-input" placeholder="main (opcional)" autocomplete="off"></label><button id="github-connect" class="primary" type="button">Conectar GitHub</button></div>
+            <p class="form-help">Apenas arquivos <code>.html</code> dentro de uma pasta chamada <code>templates</code> serão importados.</p>
+          </section>
+          <section id="github-connected" class="integration-card" hidden>
+            <div class="integration-card-head"><div><h3><a id="github-repository-link" href="#" target="_blank" rel="noopener"><span id="github-repository"></span></a></h3><p>Branch <strong id="github-branch"></strong></p></div><span id="github-status" class="integration-badge"></span></div>
+            <div class="integration-stats"><div><span>Última sincronização</span><strong id="github-last-sync"></strong></div><div><span>Commit</span><code id="github-last-sha"></code></div><div><span>Arquivos</span><strong id="github-file-count">0 HTMLs</strong></div></div>
+            <div class="integration-actions"><button id="github-sync" class="primary" type="button">Sincronizar agora</button><button id="github-disconnect" class="danger-action" type="button">Desconectar</button></div>
+            <div id="github-files-list" class="github-files-list"></div>
+          </section>
+        </div>
       </div>
     </section>
   </main>
+
   <dialog id="form-dialog">
     <form method="dialog">
-      <h3 id="dialog-title"></h3>
+      <div class="dialog-heading"><span class="dialog-kicker">Super Excel</span><h3 id="dialog-title"></h3></div>
       <div id="dialog-fields"></div>
       <div class="dialog-actions"><button value="cancel">Cancelar</button><button id="dialog-save" value="default" class="primary">Salvar</button></div>
     </form>
   </dialog>
+
   <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="{{ url_for('static', filename='js/manager.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/manager-ui.js') }}"></script>
   <script src="{{ url_for('static', filename='js/github-connector.js') }}"></script>
 </body>
 </html>

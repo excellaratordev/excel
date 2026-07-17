@@ -49,6 +49,7 @@ jobs:
           node --check static/js/auth-guard.js
           node --check static/js/login.js
           node --check static/js/auth-callback.js
+          node --check static/js/manager-ui.js
           node --check static/js/github-connector.js
           node --check static/js/calculation/formula-parser.js
           node --check static/js/calculation/dependency-graph.js
