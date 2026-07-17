@@ -23,6 +23,17 @@ def install(routes) -> None:
         payload: dict[str, Any] | None = None,
         source_revisions: dict[str, int] | None = None,
     ) -> tuple[list[dict[str, Any]] | None, str | None]:
+        if payload is None or source_revisions is None:
+            body = routes.json_body()
+            if payload is None and isinstance(body.get("payload"), dict):
+                payload = body["payload"]
+            if source_revisions is None:
+                source_revisions = {}
+                for source in body.get("sources", []):
+                    try:
+                        source_revisions[str(int(source["id"]))] = int(source["revision"])
+                    except (KeyError, TypeError, ValueError):
+                        continue
         source_revisions = source_revisions or {}
         rows = []
         for index, declaration in enumerate(declarations):
