@@ -11,6 +11,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/snapshot.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/virtual-grid.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/formula-glossary.css') }}">
 </head>
 <body class="auth-pending sheet-loading">
   <div id="snapshot-layer" class="snapshot-layer" hidden aria-label="Pré-visualização instantânea da planilha"></div>
@@ -29,7 +30,6 @@
       <button id="new-button" type="button">Nova</button>
       <button id="open-button" type="button">Abrir</button>
       <button id="save-button" type="button" class="primary">Salvar</button>
-      <button id="functions-button" type="button">30 fórmulas</button>
       <div class="auth-user">
         <img class="auth-avatar" data-auth-avatar src="" alt="">
         <div class="auth-user-text"><strong data-auth-name>Conta Google</strong><span data-auth-email></span></div>
@@ -44,6 +44,7 @@
       <span class="separator"></span>
       <button id="clear-button" type="button">Limpar célula</button>
       <button id="example-button" type="button">Carregar exemplo</button>
+      <button id="functions-button" type="button" title="Abrir glossário de fórmulas">Fórmulas</button>
       <span class="separator"></span>
       <button id="export-button" type="button">Exportar JSON</button>
       <label class="file-button" for="import-input">Importar JSON</label>
@@ -77,7 +78,23 @@
       </span>
     </footer>
   </main>
-  <dialog id="functions-dialog" class="dialog functions-dialog"><div class="dialog-header"><div><h2>30 fórmulas disponíveis</h2><p>Use ponto e vírgula <code>;</code> entre argumentos.</p></div><button class="icon-button" data-close-dialog="functions-dialog" aria-label="Fechar">×</button></div><div id="functions-list" class="functions-list"></div></dialog>
+  <dialog id="functions-dialog" class="dialog functions-dialog">
+    <div class="dialog-header">
+      <div class="functions-dialog-title">
+        <h2>Glossário de fórmulas <span id="functions-total-count" class="functions-total-badge">0</span></h2>
+        <p>Pesquise pela função, descrição ou exemplo. Use ponto e vírgula <code>;</code> entre argumentos.</p>
+      </div>
+      <button class="icon-button" data-close-dialog="functions-dialog" aria-label="Fechar">×</button>
+    </div>
+    <div class="functions-dialog-body">
+      <div class="functions-toolbar">
+        <label class="functions-search-box" for="functions-search"><span aria-hidden="true">⌕</span><input id="functions-search" type="search" placeholder="Buscar fórmula, função ou exemplo" autocomplete="off"></label>
+        <select id="functions-category" class="functions-category-select" aria-label="Filtrar por categoria"><option value="">Todas as categorias</option></select>
+        <span id="functions-result-count" class="functions-result-count">0 fórmulas</span>
+      </div>
+      <div id="functions-list" class="functions-list" aria-live="polite"></div>
+    </div>
+  </dialog>
   <dialog id="open-dialog" class="dialog open-dialog"><div class="dialog-header"><div><h2>Abrir planilha</h2><p>Arquivos disponíveis nos seus projetos.</p></div><button class="icon-button" data-close-dialog="open-dialog" aria-label="Fechar">×</button></div><div id="workbooks-list" class="workbooks-list"></div></dialog>
   <dialog id="elementar-preview-dialog" class="dialog">
     <div class="dialog-header"><div><h2>Prévia do JSON</h2><p>Este é o documento que o frontend receberá.</p></div><button class="icon-button" type="button" data-close-elementar-dialog="elementar-preview-dialog" aria-label="Fechar">×</button></div>
@@ -101,12 +118,14 @@
   <script src="{{ url_for('static', filename='js/calculation/formula-parser.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/dependency-graph.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/function-library.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/calculation/formula-catalog.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/formula-runtime.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/runtime-bridge.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/render-bridge.js') }}"></script>
   <script src="{{ url_for('static', filename='js/snapshot-manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/grid/interaction.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sheet-bootstrap-v2.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/formula-glossary.js') }}"></script>
   <script src="{{ url_for('static', filename='js/elementar-sheet.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance-telemetry.js') }}"></script>
 </body>
