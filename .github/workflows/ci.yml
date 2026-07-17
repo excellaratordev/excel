@@ -9,6 +9,7 @@ on:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -20,6 +21,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+
+      - name: Configure Rust and Wasm target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          rustc --version
+          cargo --version
 
       - name: Install Python dependencies
         run: |
@@ -40,7 +50,7 @@ jobs:
           workbook_routes.py collaboration_routes.py recovery_routes.py roles_routes.py snapshot_routes.py
           performance_cache.py telemetry_routes.py github_connector.py github_oauth.py elementar_routes.py superexcel
 
-      - name: Run backend tests
+      - name: Run backend and architecture tests
         run: pytest -q
 
       - name: Validate JavaScript syntax
@@ -50,6 +60,7 @@ jobs:
           node --check static/js/login.js
           node --check static/js/auth-callback.js
           node --check static/js/manager-ui.js
+          node --check static/js/roles-manager.js
           node --check static/js/github-connector.js
           node --check static/js/elementar-manager.js
           node --check static/js/elementar-sheet.js
@@ -57,6 +68,7 @@ jobs:
           node --check static/js/calculation/dependency-graph.js
           node --check static/js/calculation/function-library.js
           node --check static/js/calculation/formula-runtime.js
+          node --check static/js/calculation/enterprise-kernel.js
           node --check static/js/calculation/runtime-bridge.js
           node --check static/js/calculation/render-bridge.js
           node --check static/js/collab-operation.js
@@ -72,9 +84,31 @@ jobs:
           node --check static/js/app-v3.js
           node --check static/js/sheet-collaboration-v3.js
           node --check static/js/performance-telemetry.js
+          node --check static/js/wasm/engine-contract.js
+          node --check benchmarks/calculation-benchmarks.js
+          node --check benchmarks/collaboration-simulator.js
 
-      - name: Run calculation runtime tests
+      - name: Run JavaScript tests
         run: node --test tests/js/*.test.js
+
+      - name: Execute C1-C5 calculation benchmarks
+        run: node benchmarks/calculation-benchmarks.js --profile ci --output artifacts/calculation-benchmarks.json
+
+      - name: Execute R1-R5 collaboration simulation
+        run: node benchmarks/collaboration-simulator.js --output artifacts/collaboration-simulation.json
+
+      - name: Validate Rust contract
+        run: |
+          cargo test --manifest-path wasm-engine/Cargo.toml
+          cargo build --manifest-path wasm-engine/Cargo.toml --target wasm32-unknown-unknown --release
+          test -s wasm-engine/target/wasm32-unknown-unknown/release/superexcel_wasm_engine.wasm
+
+      - name: Validate migration contracts
+        run: |
+          test -s supabase/migrations/20260717022658_architecture_completion.sql
+          test -s supabase/migrations/20260717061000_harden_architecture_tables.sql
+          grep -q "create table if not exists public.project_roles" supabase/migrations/20260717022658_architecture_completion.sql
+          grep -q "enable row level security" supabase/migrations/20260717061000_harden_architecture_tables.sql
 
       - name: Ensure browser assets are same-origin
         run: |
@@ -83,3 +117,11 @@ jobs:
           ! grep -Rni "static/vendor/supabase.js" templates
           grep -Rni "assets_api.supabase_browser_client" templates
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
+
+      - name: Publish benchmark evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: platform-validation-results
+          path: artifacts/*.json
+          if-no-files-found: error
+          retention-days: 30
