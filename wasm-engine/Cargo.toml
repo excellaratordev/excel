@@ -1,0 +1,15 @@
+[package]
+name = "superexcel-wasm-engine"
+version = "0.1.0"
+edition = "2021"
+description = "Initial stable ABI contract for the Super Excel Rust/Wasm calculation engine"
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = "s"
+panic = "abort"
