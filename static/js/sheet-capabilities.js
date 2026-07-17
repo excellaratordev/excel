@@ -8,12 +8,14 @@
   if (canEdit) return;
 
   const formula = document.querySelector('#formula-input');
+  const cellEditor = document.querySelector('.virtual-grid-editor');
   const grid = document.querySelector('#spreadsheet');
   const status = document.querySelector('#status-message');
   const nameInput = document.querySelector('#workbook-name');
 
   document.body.classList.add('sheet-readonly');
   if (formula) formula.disabled = true;
+  if (cellEditor) cellEditor.disabled = true;
   if (nameInput) nameInput.disabled = true;
 
   for (const selector of [
@@ -26,19 +28,27 @@
 
   const block = event => {
     if (event.type === 'keydown') {
+      const modifier = event.ctrlKey || event.metaKey;
       const editingKey = ['Delete', 'Backspace', 'F2'].includes(event.key)
-        || (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.length === 1);
+        || (modifier && event.key.toLowerCase() === 'x')
+        || (!modifier && !event.altKey && event.key.length === 1);
       if (!editingKey) return;
     }
     event.preventDefault();
     event.stopImmediatePropagation();
-    if (status) status.textContent = 'Você não possui a capacidade cell.edit';
+    if (status) {
+      status.textContent = 'Você não possui a capacidade cell.edit';
+      status.classList.add('error');
+    }
   };
 
   grid?.addEventListener('dblclick', block, true);
   grid?.addEventListener('keydown', block, true);
   grid?.addEventListener('paste', block, true);
+  grid?.addEventListener('cut', block, true);
+  grid?.addEventListener('drop', block, true);
   formula?.addEventListener('beforeinput', block, true);
+  cellEditor?.addEventListener('beforeinput', block, true);
   nameInput?.addEventListener('beforeinput', block, true);
 
   const banner = document.createElement('div');
