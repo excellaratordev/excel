@@ -1,6 +1,8 @@
 (() => {
   'use strict';
 
+  window.__superExcelPipelineManagerBootstrapped = true;
+
   const nativeFetch = window.fetch.bind(window);
   const context = {
     projectId: null,
@@ -41,6 +43,8 @@
           context.workbooks = Array.isArray(data?.workbooks) ? data.workbooks : [];
           context.dependencies = Array.isArray(data?.dependencies) ? data.dependencies : [];
           context.loaded = true;
+          document.body.dataset.pipelineProjectId = context.projectId ? String(context.projectId) : '';
+          document.body.dataset.pipelineFolderId = context.folderId ? String(context.folderId) : '';
           scheduleTransform();
         }).catch(error => {
           context.loaded = true;
@@ -110,22 +114,20 @@
   }
 
   function emptyLane(container, stage) {
-    const empty = document.createElement('div');
-    empty.className = 'pipeline-lane-empty';
-    empty.innerHTML = `<strong>Nenhum arquivo</strong><span>Crie um arquivo na etapa ${stage.number}.</span>`;
-    container.append(empty);
+    const placeholder = document.createElement('div');
+    placeholder.className = 'pipeline-lane-empty';
+    placeholder.innerHTML = `<strong>Nenhum arquivo</strong><span>Crie um arquivo na etapa ${stage.number}.</span>`;
+    container.append(placeholder);
   }
 
   function transformItems() {
     const root = document.querySelector('#items');
     if (!root || context.transforming || !context.loaded) return;
-    const existingBoard = root.querySelector(':scope > .pipeline-board');
-    if (existingBoard) return;
+    if (root.querySelector(':scope > .pipeline-board')) return;
 
     const cards = [...root.querySelectorAll(':scope > .workbook-item')];
     const folderCards = [...root.querySelectorAll(':scope > .folder-item, :scope > .back-item')];
     if (cards.length !== context.workbooks.length) return;
-    if (!cards.length && !folderCards.length && !context.workbooks.length) return;
 
     context.transforming = true;
     try {
