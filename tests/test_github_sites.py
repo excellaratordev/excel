@@ -33,7 +33,7 @@ def test_subdomain_url_and_host_detection(monkeypatch):
     assert github_sites.site_slug_from_host("x.y.sites.superexcel.com.br") is None
 
 
-def test_synced_html_is_served_with_isolation_headers(monkeypatch):
+def install_published_file_stubs(monkeypatch):
     monkeypatch.setattr(
         github_sites,
         "_connection_for_slug",
@@ -52,6 +52,9 @@ def test_synced_html_is_served_with_isolation_headers(monkeypatch):
         ),
     )
 
+
+def test_synced_html_is_served_with_isolation_headers(monkeypatch):
+    install_published_file_stubs(monkeypatch)
     app = Flask(__name__)
     with app.test_request_context("/"):
         response = github_sites.serve_github_site("frontend-12", "")
@@ -62,6 +65,19 @@ def test_synced_html_is_served_with_isolation_headers(monkeypatch):
     assert response.headers["X-Content-Type-Options"] == "nosniff"
     assert response.headers["Cross-Origin-Opener-Policy"] == "same-origin"
     assert response.headers["X-SuperExcel-Source-Commit"] == "9" * 40
+    assert "Content-Security-Policy" not in response.headers
+
+
+def test_same_origin_preview_uses_opaque_sandbox(monkeypatch):
+    install_published_file_stubs(monkeypatch)
+    app = Flask(__name__)
+    with app.test_request_context("/_sites/frontend-12/"):
+        response = github_sites.serve_github_site("frontend-12", "", sandboxed=True)
+
+    assert response.headers["Content-Security-Policy"] == github_sites.PREVIEW_SANDBOX_POLICY
+    assert response.headers["X-SuperExcel-Preview"] == "sandboxed"
+    assert response.headers["Cache-Control"] == "no-store"
+    assert "allow-same-origin" not in response.headers["Content-Security-Policy"]
 
 
 def test_host_dispatch_intercepts_only_configured_site_domain(monkeypatch):
@@ -69,7 +85,7 @@ def test_host_dispatch_intercepts_only_configured_site_domain(monkeypatch):
     monkeypatch.setattr(
         github_sites,
         "serve_github_site",
-        lambda slug, path: github_sites.Response(f"{slug}:{path}", content_type="text/plain"),
+        lambda slug, path, **kwargs: github_sites.Response(f"{slug}:{path}", content_type="text/plain"),
     )
 
     app = Flask(__name__)
