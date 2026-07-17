@@ -4,6 +4,14 @@
   const workbookId = Number(document.documentElement.dataset.workbookId || 0);
   if (!workbookId) return;
 
+  const enableButton = document.querySelector('#elementar-enable-button');
+  if (enableButton) {
+    enableButton.hidden = true;
+    new MutationObserver(() => {
+      if (!enableButton.hidden) enableButton.hidden = true;
+    }).observe(enableButton, { attributes: true, attributeFilter: ['hidden'] });
+  }
+
   const declarationPattern = /^\s*([A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_.-]*)\s*=\s*'((?:[^']|'')+)'\s*!\s*(\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)\s*$/iu;
   const originalFetch = window.fetch.bind(window);
   const legacyPublishPath = `/api/elementar/workbooks/${workbookId}/publish`;
