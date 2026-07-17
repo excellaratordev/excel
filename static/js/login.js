@@ -5,6 +5,7 @@
   const errorElement = document.querySelector('#login-error');
   const titleElement = document.querySelector('#login-title');
   const descriptionElement = document.querySelector('#login-description');
+  const eyebrowElement = document.querySelector('.login-eyebrow');
 
   function safeNext() {
     const requested = new URLSearchParams(window.location.search).get('next') || '/files';
@@ -21,18 +22,38 @@
       || identities.has('google');
   }
 
+  function greetingForHour(hour) {
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  }
+
+  function setButtonLoading(loading, label) {
+    button.disabled = loading;
+    button.setAttribute('aria-busy', String(loading));
+    button.querySelector('span:last-child').textContent = label;
+  }
+
   function showError(message) {
     errorElement.textContent = message || '';
-    button.disabled = false;
-    button.querySelector('span:last-child').textContent = 'Entrar com Google';
+    setButtonLoading(false, 'Entrar com Google');
+  }
+
+  function configurePageCopy(next) {
+    if (next.startsWith('/invite/')) {
+      eyebrowElement.textContent = 'Convite para colaborar';
+      titleElement.textContent = 'Você recebeu um convite';
+      descriptionElement.textContent = 'Entre com sua conta Google para participar do projeto compartilhado no Super Excel.';
+      return;
+    }
+
+    const greeting = greetingForHour(new Date().getHours());
+    eyebrowElement.textContent = `${greeting} · Bem-vindo de volta`;
   }
 
   async function initialize() {
     const next = safeNext();
-    if (next.startsWith('/invite/')) {
-      titleElement.textContent = 'Você recebeu um convite';
-      descriptionElement.textContent = 'Entre com sua conta Google para participar do projeto compartilhado no Super Excel.';
-    }
+    configurePageCopy(next);
 
     const response = await fetch('/api/auth/config', { headers: { Accept: 'application/json' } });
     const config = await response.json();
@@ -55,9 +76,10 @@
       return;
     }
 
+    document.body.classList.add('login-ready');
+
     button.addEventListener('click', async () => {
-      button.disabled = true;
-      button.querySelector('span:last-child').textContent = 'Abrindo Google...';
+      setButtonLoading(true, 'Abrindo Google...');
       errorElement.textContent = '';
       sessionStorage.setItem('super-excel-auth-next', next);
 
@@ -75,6 +97,7 @@
 
   initialize().catch(error => {
     console.error(error);
+    document.body.classList.add('login-ready');
     showError(error.message);
   });
 })();
