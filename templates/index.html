@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Super Excel: planilha web colaborativa com Flask e HyperFormula.">
+  <meta name="description" content="Super Excel: planilha web colaborativa com motor de cálculo incremental próprio.">
   <title>Super Excel</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
@@ -44,17 +44,17 @@
     </section>
     <section class="formula-row"><div id="cell-address" class="cell-address">A1</div><div class="fx">fx</div><input id="formula-input" type="text" spellcheck="false" autocomplete="off" aria-label="Barra de fórmulas" placeholder="Digite um valor ou fórmula, por exemplo: =SOMA(A1:A5)"></section>
     <section class="sheet-shell"><div id="spreadsheet" class="spreadsheet" role="grid" aria-label="Planilha"></div></section>
-    <footer class="statusbar"><span id="status-message">Carregando...</span><span id="selection-summary"></span><span>HyperFormula 3.3.0 · pt-BR</span></footer>
+    <footer class="statusbar"><span id="status-message">Carregando...</span><span id="selection-summary"></span><span>SuperExcel Runtime 0.1 · incremental</span></footer>
   </main>
   <dialog id="functions-dialog" class="dialog functions-dialog"><div class="dialog-header"><div><h2>30 fórmulas disponíveis</h2><p>Use ponto e vírgula <code>;</code> entre argumentos.</p></div><button class="icon-button" data-close-dialog="functions-dialog" aria-label="Fechar">×</button></div><div id="functions-list" class="functions-list"></div></dialog>
   <dialog id="open-dialog" class="dialog open-dialog"><div class="dialog-header"><div><h2>Abrir planilha</h2><p>Arquivos disponíveis nos seus projetos.</p></div><button class="icon-button" data-close-dialog="open-dialog" aria-label="Fechar">×</button></div><div id="workbooks-list" class="workbooks-list"></div></dialog>
   <p data-auth-error class="error-text" hidden></p>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hyperformula@3.3.0/dist/hyperformula.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/hyperformula@3.3.0/dist/languages/ptPT.js"></script>
-  <script src="{{ url_for('static', filename='js/formula-engine.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/formula-compatibility.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/calculation/formula-parser.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/calculation/dependency-graph.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/calculation/function-library.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/calculation/formula-runtime.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sheet-bootstrap.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance-telemetry.js') }}"></script>
 </body>
