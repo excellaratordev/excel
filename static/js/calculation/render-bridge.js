@@ -33,7 +33,7 @@
     const runtime = activeRuntime;
     if (!runtime?.consumeAffectedCells) return;
 
-    const rendered = new Set();
+    const rendered = new Map();
     for (let round = 0; round < 4; round += 1) {
       const affected = runtime.consumeAffectedCells();
       if (!affected.length) break;
@@ -43,7 +43,7 @@
         const col = Number(coordinate.col);
         const key = `${row}:${col}`;
         if (rendered.has(key)) continue;
-        rendered.add(key);
+        rendered.set(key, { row, col });
 
         const target = document.querySelector(`#spreadsheet .cell[data-row="${row}"][data-col="${col}"]`);
         if (!target || target.classList.contains('editing')) continue;
@@ -55,7 +55,10 @@
 
     if (rendered.size) {
       window.dispatchEvent(new CustomEvent('superexcel:rendered', {
-        detail: { cells: rendered.size },
+        detail: {
+          cells: rendered.size,
+          coordinates: [...rendered.values()],
+        },
       }));
     }
   }
