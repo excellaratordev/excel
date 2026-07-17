@@ -12,6 +12,7 @@ for (const file of [
   'formula-catalog.js',
   'formula-runtime.js',
   'logical-library.js',
+  'logical-localization-ptbr.js',
 ]) {
   require(path.join(__dirname, '../../static/js/calculation', file));
 }
@@ -78,6 +79,18 @@ test('funções de inspeção retornam valores lógicos previsíveis', () => {
   ]);
 
   for (let col = 0; col < 6; col += 1) assert.equal(value(engine, 1, col), true);
+});
+
+test('aliases pt-BR com ponto usam a mesma implementação lógica', () => {
+  const engine = SuperExcelFormulaEngine.create([
+    ['=SE.ERRO(1/0;7)'],
+    ['=SE.NÃO.DISP(NÃO.DISP();9)'],
+    ['=OU.EXCL(VERDADEIRO();FALSO())'],
+  ]);
+
+  assert.equal(value(engine, 0, 0), 7);
+  assert.equal(value(engine, 1, 0), 9);
+  assert.equal(value(engine, 2, 0), true);
 });
 
 test('SE e comparações suportam matrizes derramadas', () => {
