@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="description" content="Base relacional do Super Excel, sem fórmulas e com linhas virtualizadas.">
+  <meta name="description" content="Base relacional do Super Excel com linhas virtualizadas e suporte a valores iniciados por igual.">
   <title>Super Excel — Base</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
@@ -82,7 +82,7 @@
 
   <dialog id="column-dialog" class="base-dialog">
     <form id="column-form">
-      <div><span class="dialog-kicker">Estrutura relacional</span><h2>Nova coluna</h2><p>Colunas definem o esquema da Base. Fórmulas não são permitidas.</p></div>
+      <div><span class="dialog-kicker">Estrutura relacional</span><h2>Nova coluna</h2><p>Colunas definem o esquema da Base. Valores iniciados por <code>=</code> são permitidos.</p></div>
       <label>Nome<input name="name" maxlength="120" placeholder="Ex.: cliente" required></label>
       <label>Tipo<select name="data_type"><option value="text">Texto</option><option value="number">Número</option><option value="boolean">Verdadeiro/Falso</option><option value="date">Data</option><option value="datetime">Data e hora</option><option value="json">JSON</option></select></label>
       <label class="check-label"><input name="required" type="checkbox"> Valor obrigatório</label>
