@@ -2,7 +2,11 @@ services:
   - type: web
     name: super-excel
     runtime: python
-    buildCommand: pip install -r requirements.txt
+    buildCommand: >-
+      npm install --omit=dev &&
+      mkdir -p static/vendor &&
+      cp node_modules/@supabase/supabase-js/dist/umd/supabase.js static/vendor/supabase.js &&
+      pip install -r requirements.txt
     startCommand: gunicorn --bind 0.0.0.0:$PORT app:app
     healthCheckPath: /api/health
     autoDeploy: true
