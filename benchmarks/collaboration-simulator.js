@@ -166,9 +166,11 @@ function scenarioR4() {
   }
   offline.online = true;
   const queued = offline.queue.length;
-  offline.flush(300001);
   const recovered = offline.reconcileDelta();
-  if (queued !== 50 || server.operations.length !== 100 || offline.queue.length) throw new Error('R4 falhou ao reconciliar fila offline.');
+  offline.flush(300001);
+  if (queued !== 50 || recovered.length !== 50 || server.operations.length !== 100 || offline.queue.length) {
+    throw new Error('R4 falhou ao reconciliar fila offline.');
+  }
   return { offline_minutes: 5, queued_operations: queued, recovered_events: recovered.length, lost: 0 };
 }
 
