@@ -13,7 +13,7 @@
     <p id="callback-status">Validando sua conta Google...</p>
     <p id="callback-error" class="login-error" role="alert"></p>
   </main>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="{{ url_for('static', filename='vendor/supabase.js') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-callback.js') }}"></script>
 </body>
 </html>
