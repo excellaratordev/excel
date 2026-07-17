@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from base_routes import formula_like, normalize_key, normalize_typed_value
+from base_formula_policy import formula_like, normalize_typed_value
+from base_routes import normalize_key
 from elementar_routes import parse_range
 from superexcel.core.file_pipeline import (
     FILE_KIND_BASE,
@@ -67,15 +68,14 @@ def test_relational_payload_has_no_cell_matrix_or_formula_runtime() -> None:
     assert "formulas" not in payload
 
 
-def test_base_rejects_formula_like_values_recursively() -> None:
-    assert formula_like("=SOMA(A1:A2)")
-    assert formula_like({"regra": [1, " =SE(A1;1;0)"]})
-    assert not formula_like("valor = 10")
-    assert not formula_like({"texto": "normal", "numero": 10})
-    with pytest.raises(ValueError, match="não aceitam fórmulas"):
-        normalize_typed_value("=1+1", "text")
-    with pytest.raises(ValueError, match="não aceitam fórmulas"):
-        normalize_typed_value({"x": "=A1"}, "json")
+def test_base_accepts_formula_like_values_without_type_restriction() -> None:
+    assert not formula_like("=SOMA(A1:A2)")
+    assert normalize_typed_value("=1+1", "text") == "=1+1"
+    assert normalize_typed_value("='Planilha'!A1", "number") == "='Planilha'!A1"
+    assert normalize_typed_value("=A1", "boolean") == "=A1"
+    assert normalize_typed_value("=HOJE()", "date") == "=HOJE()"
+    assert normalize_typed_value("=AGORA()", "datetime") == "=AGORA()"
+    assert normalize_typed_value("={'x':1}", "json") == "={'x':1}"
 
 
 def test_base_values_are_normalized_by_relational_type() -> None:
