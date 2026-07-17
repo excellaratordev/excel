@@ -7,6 +7,7 @@
     folderId: null,
     workbooks: [],
     dependencies: [],
+    loaded: false,
     transforming: false,
     scheduled: false,
   };
@@ -35,11 +36,16 @@
       if (url.origin === location.origin && url.pathname === '/api/manager' && response.ok) {
         context.projectId = Number(url.searchParams.get('project_id')) || null;
         context.folderId = Number(url.searchParams.get('folder_id')) || null;
+        context.loaded = false;
         response.clone().json().then(data => {
           context.workbooks = Array.isArray(data?.workbooks) ? data.workbooks : [];
           context.dependencies = Array.isArray(data?.dependencies) ? data.dependencies : [];
+          context.loaded = true;
           scheduleTransform();
-        }).catch(console.debug);
+        }).catch(error => {
+          context.loaded = true;
+          console.debug(error);
+        });
       }
     } catch (error) {
       console.debug('Pipeline manager:', error);
@@ -74,6 +80,7 @@
     card.dataset.workbookId = String(workbook.id);
     card.dataset.fileKind = workbook.file_kind || 'spreadsheet';
     card.dataset.pipelineStage = stage.key;
+    card.classList.remove('stage-source', 'stage-calculation', 'stage-treated', 'stage-publication');
     card.classList.add(`stage-${stage.key}`);
 
     const icon = card.querySelector('.icon');
@@ -111,12 +118,13 @@
 
   function transformItems() {
     const root = document.querySelector('#items');
-    if (!root || context.transforming) return;
+    if (!root || context.transforming || !context.loaded) return;
     const existingBoard = root.querySelector(':scope > .pipeline-board');
     if (existingBoard) return;
 
     const cards = [...root.querySelectorAll(':scope > .workbook-item')];
     const folderCards = [...root.querySelectorAll(':scope > .folder-item, :scope > .back-item')];
+    if (cards.length !== context.workbooks.length) return;
     if (!cards.length && !folderCards.length && !context.workbooks.length) return;
 
     context.transforming = true;
@@ -225,5 +233,4 @@
   }
   new MutationObserver(updateCapability).observe(document.body, { attributes: true, attributeFilter: ['data-project-role'] });
   updateCapability();
-  scheduleTransform();
 })();
