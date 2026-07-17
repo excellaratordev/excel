@@ -6,6 +6,14 @@ const test = require('node:test');
 
 const monitorPath = path.join(__dirname, '../../static/js/performance-telemetry.js');
 
+function defineGlobal(name, value) {
+  Object.defineProperty(global, name, {
+    configurable: true,
+    writable: true,
+    value,
+  });
+}
+
 function installBrowserStubs(memory) {
   const display = {
     textContent: '',
@@ -15,20 +23,20 @@ function installBrowserStubs(memory) {
     setAttribute(name, value) { this.attributes[name] = value; },
   };
 
-  global.window = global;
-  global.document = {
+  defineGlobal('window', global);
+  defineGlobal('document', {
     documentElement: { dataset: { workbookId: '' } },
     querySelector(selector) { return selector === '#memory-usage' ? display : null; },
     addEventListener() {},
-  };
-  global.performance = { memory };
-  global.navigator = {};
-  global.CustomEvent = class CustomEvent {
+  });
+  defineGlobal('performance', { memory });
+  defineGlobal('navigator', {});
+  defineGlobal('CustomEvent', class CustomEvent {
     constructor(type, options = {}) { this.type = type; this.detail = options.detail; }
-  };
-  global.dispatchEvent = () => true;
-  global.setInterval = () => 1;
-  global.clearTimeout = () => {};
+  });
+  defineGlobal('dispatchEvent', () => true);
+  defineGlobal('setInterval', () => 1);
+  defineGlobal('clearTimeout', () => {});
   return display;
 }
 
