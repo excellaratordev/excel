@@ -10,9 +10,11 @@
     ranges: [],
     timer: null,
     dependencyTimer: null,
+    dependencyRequest: null,
     syncing: false,
     hydrated: false,
     pendingCells: new Map(),
+    recentCells: new Map(),
     dependencySignature: '',
   };
 
@@ -23,15 +25,40 @@
     ));
   }
 
-  function rememberCells(cells) {
-    let relevant = false;
+  function normalizeCoordinates(cells) {
+    const output = [];
     for (const item of cells || []) {
       const row = Number(item?.row ?? item?.r);
       const col = Number(item?.col ?? item?.c);
-      if (!Number.isInteger(row) || !Number.isInteger(col) || !intersects(row, col)) continue;
-      state.pendingCells.set(`${row}:${col}`, { row, col });
+      if (!Number.isInteger(row) || !Number.isInteger(col) || row < 0 || col < 0) continue;
+      output.push({ row, col });
+    }
+    return output;
+  }
+
+  function rememberRecent(cells) {
+    for (const item of normalizeCoordinates(cells)) {
+      state.recentCells.set(`${item.row}:${item.col}`, item);
+    }
+    if (state.recentCells.size > 5000) {
+      const remove = state.recentCells.size - 5000;
+      for (const key of [...state.recentCells.keys()].slice(0, remove)) state.recentCells.delete(key);
+    }
+  }
+
+  function rememberRelevant(cells) {
+    let relevant = false;
+    for (const item of normalizeCoordinates(cells)) {
+      if (!intersects(item.row, item.col)) continue;
+      state.pendingCells.set(`${item.row}:${item.col}`, item);
       relevant = true;
     }
+    return relevant;
+  }
+
+  function reclassifyRecentCells() {
+    const relevant = rememberRelevant([...state.recentCells.values()]);
+    state.recentCells.clear();
     return relevant;
   }
 
@@ -153,15 +180,25 @@
   }
 
   async function loadDependencies({ capture = false } = {}) {
-    const response = await fetch(`/api/elementar/sources/${workbookId}/dependencies`, { cache: 'no-store' });
-    const output = await response.json();
-    if (!response.ok) throw new Error(output.error || 'Falha ao carregar dependências Elementar.');
-    const ranges = normalizeRanges(output.ranges);
-    const signature = JSON.stringify(ranges);
-    const changed = signature !== state.dependencySignature;
-    state.ranges = ranges;
-    state.dependencySignature = signature;
-    if ((capture || changed) && state.hydrated && ranges.length) scheduleSync(100);
+    if (state.dependencyRequest) return state.dependencyRequest;
+    state.dependencyRequest = (async () => {
+      const response = await fetch(`/api/elementar/sources/${workbookId}/dependencies`, { cache: 'no-store' });
+      const output = await response.json();
+      if (!response.ok) throw new Error(output.error || 'Falha ao carregar dependências Elementar.');
+      const ranges = normalizeRanges(output.ranges);
+      const signature = JSON.stringify(ranges);
+      const changed = signature !== state.dependencySignature;
+      state.ranges = ranges;
+      state.dependencySignature = signature;
+      const relevantRecent = reclassifyRecentCells();
+      if ((capture || changed || relevantRecent) && state.hydrated && ranges.length) scheduleSync(100);
+      return ranges;
+    })();
+    try {
+      return await state.dependencyRequest;
+    } finally {
+      state.dependencyRequest = null;
+    }
   }
 
   function ensureDependencyPolling() {
@@ -172,13 +209,19 @@
     }, DEPENDENCY_REFRESH_MS);
   }
 
-  window.addEventListener('superexcel:changes', event => {
-    if (rememberCells(event.detail?.changes)) scheduleSync();
-  });
+  function handleChangedCoordinates(cells) {
+    rememberRecent(cells);
+    if (rememberRelevant(cells)) {
+      scheduleSync();
+      return;
+    }
+    if (!state.ranges.length || state.recentCells.size) {
+      loadDependencies().catch(error => console.debug('Dependências Elementar indisponíveis.', error));
+    }
+  }
 
-  window.addEventListener('superexcel:rendered', event => {
-    if (rememberCells(event.detail?.coordinates)) scheduleSync();
-  });
+  window.addEventListener('superexcel:changes', event => handleChangedCoordinates(event.detail?.changes));
+  window.addEventListener('superexcel:rendered', event => handleChangedCoordinates(event.detail?.coordinates));
 
   window.addEventListener('superexcel:hydrated', () => {
     state.hydrated = true;
