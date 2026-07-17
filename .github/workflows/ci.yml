@@ -120,6 +120,7 @@ jobs:
           test -s supabase/migrations/20260717061000_harden_architecture_tables.sql
           test -s supabase/migrations/20260717070000_publish_github_html_subdomains.sql
           test -s supabase/migrations/20260717081500_elementar_automatic_publication.sql
+          test -s supabase/migrations/20260717083000_backfill_elementar_dependencies.sql
           grep -q "create table if not exists public.project_roles" supabase/migrations/20260717022658_architecture_completion.sql
           grep -q "enable row level security" supabase/migrations/20260717061000_harden_architecture_tables.sql
           grep -q "github_connections_site_slug_uidx" supabase/migrations/20260717070000_publish_github_html_subdomains.sql
@@ -127,6 +128,8 @@ jobs:
           grep -q "create table if not exists public.elementar_dependencies" supabase/migrations/20260717081500_elementar_automatic_publication.sql
           grep -q "create table if not exists public.elementar_source_snapshots" supabase/migrations/20260717081500_elementar_automatic_publication.sql
           grep -q "last_payload_hash" supabase/migrations/20260717081500_elementar_automatic_publication.sql
+          grep -q "jsonb_array_elements" supabase/migrations/20260717083000_backfill_elementar_dependencies.sql
+          grep -q "on conflict (elementar_workbook_id, declaration_key)" supabase/migrations/20260717083000_backfill_elementar_dependencies.sql
 
       - name: Ensure browser assets are same-origin
         run: |
