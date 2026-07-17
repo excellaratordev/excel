@@ -7,3 +7,5 @@ venv/
 data/*.db
 data/*.db-*
 .pytest_cache/
+node_modules/
+static/vendor/supabase.js
