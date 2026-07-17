@@ -26,6 +26,7 @@ test('simulação R1-R5 não perde operações e usa recuperação por delta', (
   assert.equal(result.scenarios.R2.conflicts, 1);
   assert.equal(result.scenarios.R3.users, 20);
   assert.equal(result.scenarios.R4.lost, 0);
+  assert.equal(result.scenarios.R4.recovered_events, 50);
   assert.equal(result.scenarios.R5.snapshot_required, false);
 });
 
