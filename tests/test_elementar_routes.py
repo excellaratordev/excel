@@ -39,7 +39,14 @@ def test_slugify_and_reference_validation():
 
 def test_enable_elementar_creates_private_config(monkeypatch):
     monkeypatch.setattr(backend, "verify_user_token", lambda token: (google_user(), None))
-    workbook = {"id": 12, "name": "API Comercial", "project_id": 4, "revision": 1}
+    workbook = {
+        "id": 12,
+        "name": "API Comercial",
+        "project_id": 4,
+        "revision": 1,
+        "file_kind": "elementar",
+        "pipeline_stage": "publication",
+    }
     monkeypatch.setattr(elementar_routes, "get_workbook", lambda workbook_id, include_payload=False: (workbook.copy(), FakeResponse(200, [workbook.copy()])))
     monkeypatch.setattr(elementar_routes, "require_project", lambda project_id, minimum_role="viewer": ({"id": project_id}, "editor", None))
     monkeypatch.setattr(elementar_routes, "fetch_one", lambda table, params: (None, FakeResponse(200, [])))
@@ -54,6 +61,23 @@ def test_enable_elementar_creates_private_config(monkeypatch):
     response = app.test_client().post("/api/elementar/workbooks/12/enable", headers={"Authorization": "Bearer token"}, json={})
     assert response.status_code == 200
     assert response.get_json()["authenticated_endpoint"] == "/api/elementar/data/api-comercial-12"
+
+
+def test_regular_spreadsheet_cannot_be_converted_to_elementar(monkeypatch):
+    monkeypatch.setattr(backend, "verify_user_token", lambda token: (google_user(), None))
+    workbook = {
+        "id": 15,
+        "name": "Cálculo",
+        "project_id": 4,
+        "revision": 1,
+        "file_kind": "spreadsheet",
+        "pipeline_stage": "calculation",
+    }
+    monkeypatch.setattr(elementar_routes, "get_workbook", lambda workbook_id, include_payload=False: (workbook.copy(), FakeResponse(200, [workbook.copy()])))
+    monkeypatch.setattr(elementar_routes, "require_project", lambda project_id, minimum_role="viewer": ({"id": project_id}, "editor", None))
+    response = app.test_client().post("/api/elementar/workbooks/15/enable", headers={"Authorization": "Bearer token"}, json={})
+    assert response.status_code == 409
+    assert "etapa 4" in response.get_json()["error"]
 
 
 def test_public_endpoint_returns_json_and_cache_headers(monkeypatch):
