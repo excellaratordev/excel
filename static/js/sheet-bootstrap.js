@@ -6,8 +6,6 @@
   const legacyCollaboration = new URLSearchParams(window.location.search).get('collab') === 'v2';
   const DEFAULT_ROWS = 60;
   const DEFAULT_COLS = 26;
-  const SOFT_ROWS = 250;
-  const SOFT_COLS = 40;
   const MAX_ROWS = 5000;
   const MAX_COLS = 300;
 
@@ -16,44 +14,32 @@
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   }
 
-  function columnIndex(name) {
-    let result = 0;
-    for (const letter of String(name).toUpperCase()) result = result * 26 + letter.charCodeAt(0) - 64;
-    return Math.max(0, result - 1);
-  }
-
   function dimensionsFromPayload(payload) {
     const cells = Array.isArray(payload?.cells) ? payload.cells : [];
-    const declaredRows = positiveInteger(payload?.rows, cells.length || DEFAULT_ROWS);
-    const declaredCols = positiveInteger(
-      payload?.cols,
-      cells.reduce((largest, row) => Math.max(largest, Array.isArray(row) ? row.length : 0), DEFAULT_COLS),
-    );
-    let lastUsedRow = -1;
-    let lastUsedCol = -1;
-    let lastReferencedRow = -1;
-    let lastReferencedCol = -1;
-    const referencePattern = /\$?([A-Z]{1,3})\$?(\d+)/giu;
-
-    cells.forEach((row, rowIndex) => {
-      if (!Array.isArray(row)) return;
-      row.forEach((value, colIndex) => {
-        if (value === null || value === undefined || value === '') return;
-        lastUsedRow = Math.max(lastUsedRow, rowIndex);
-        lastUsedCol = Math.max(lastUsedCol, colIndex);
-        if (typeof value !== 'string' || !value.trimStart().startsWith('=')) return;
-        referencePattern.lastIndex = 0;
-        let match;
-        while ((match = referencePattern.exec(value)) !== null) {
-          lastReferencedCol = Math.max(lastReferencedCol, columnIndex(match[1]));
-          lastReferencedRow = Math.max(lastReferencedRow, Number(match[2]) - 1);
-        }
+    let lastRow = -1;
+    let lastCol = -1;
+    const sparse = payload?.storage === 'sparse' || (cells.length > 0 && !Array.isArray(cells[0]));
+    if (sparse) {
+      for (const item of cells) {
+        const row = Number(item?.r);
+        const col = Number(item?.c);
+        if (!Number.isInteger(row) || !Number.isInteger(col)) continue;
+        lastRow = Math.max(lastRow, row);
+        lastCol = Math.max(lastCol, col);
+      }
+    } else {
+      cells.forEach((row, rowIndex) => {
+        if (!Array.isArray(row)) return;
+        row.forEach((value, colIndex) => {
+          if (value === null || value === undefined || value === '') return;
+          lastRow = Math.max(lastRow, rowIndex);
+          lastCol = Math.max(lastCol, colIndex);
+        });
       });
-    });
-
+    }
     return {
-      rows: Math.min(MAX_ROWS, Math.max(DEFAULT_ROWS, Math.min(declaredRows, SOFT_ROWS), lastUsedRow + 31, lastReferencedRow + 1)),
-      cols: Math.min(MAX_COLS, Math.max(DEFAULT_COLS, Math.min(declaredCols, SOFT_COLS), lastUsedCol + 8, lastReferencedCol + 1)),
+      rows: Math.min(MAX_ROWS, Math.max(DEFAULT_ROWS, positiveInteger(payload?.rows, DEFAULT_ROWS), lastRow + 1)),
+      cols: Math.min(MAX_COLS, Math.max(DEFAULT_COLS, positiveInteger(payload?.cols, DEFAULT_COLS), lastCol + 1)),
     };
   }
 
@@ -77,13 +63,14 @@
 
   async function initialize() {
     await window.SuperExcelAuth.ready;
-    let workbook = { version: 1, name: 'Minha Planilha', rows: DEFAULT_ROWS, cols: DEFAULT_COLS, cells: [] };
-    let meta = { revision: 0, project_id: null, role: 'editor', realtime_topic: null };
+    let workbook = { version: 2, storage: 'sparse', name: 'Minha Planilha', rows: DEFAULT_ROWS, cols: DEFAULT_COLS, cells: [] };
+    let meta = { revision: 0, project_id: null, role: 'editor', capabilities: [], realtime_topic: null };
 
     if (workbookId) {
-      const [output, collaboration] = await Promise.all([
+      const [output, collaboration, access] = await Promise.all([
         fetchJson(`/api/workbooks/${workbookId}`),
         fetchJson(`/api/workbooks/${workbookId}/collaboration-config`),
+        fetchJson(`/api/workbooks/${workbookId}/capabilities`),
       ]);
       workbook = output.data || workbook;
       workbook.name = output.name || workbook.name || 'Minha Planilha';
@@ -91,6 +78,7 @@
         revision: Number(output.revision || collaboration.revision || 1),
         project_id: output.project_id || collaboration.project_id,
         role: output.role || collaboration.role || 'viewer',
+        capabilities: access.capabilities || output.capabilities || collaboration.capabilities || [],
         updated_at: output.updated_at,
         updated_by_email: output.updated_by_email,
         realtime_topic: collaboration.realtime_topic,
@@ -107,9 +95,12 @@
       return;
     }
 
+    await loadScript('/static/js/grid/sparse-store.js');
+    await loadScript('/static/js/grid/viewport.js');
     await loadScript('/static/js/collab-operation.js');
     await loadScript('/static/js/collab-operation-store.js');
-    await loadScript('/static/js/app-v2.js');
+    await loadScript('/static/js/app-v3.js');
+    await loadScript('/static/js/sheet-capabilities.js');
     await loadScript('/static/js/sheet-collaboration-v3.js');
   }
 
@@ -117,9 +108,6 @@
     console.error(error);
     document.body.classList.remove('sheet-loading');
     const status = document.querySelector('#status-message');
-    if (status) {
-      status.textContent = error.message || 'Erro ao abrir a planilha.';
-      status.classList.add('error');
-    }
+    if (status) { status.textContent = error.message || 'Erro ao abrir a planilha.'; status.classList.add('error'); }
   });
 })();

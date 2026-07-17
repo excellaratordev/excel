@@ -1,0 +1,60 @@
+.sheet-shell { position: relative; overflow: auto; }
+.spreadsheet.virtual-grid {
+  position: relative;
+  min-width: 100%;
+  min-height: 100%;
+  contain: strict;
+  background: #fff;
+}
+.virtual-grid-canvas { position: relative; }
+.virtual-grid-layer { position: absolute; inset: 0; pointer-events: none; }
+.virtual-grid-cell,
+.virtual-grid-row-header,
+.virtual-grid-col-header,
+.virtual-grid-corner {
+  position: absolute;
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: #fff;
+}
+.virtual-grid-cell {
+  width: var(--cell-width);
+  height: 26px;
+  padding: 3px 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  outline: none;
+  font-size: 13px;
+  cursor: cell;
+  user-select: none;
+  pointer-events: auto;
+}
+.virtual-grid-row-header,
+.virtual-grid-col-header,
+.virtual-grid-corner {
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  color: #4f5862;
+  background: var(--header);
+  font-size: 12px;
+}
+.virtual-grid-row-header { width: var(--row-header-width); height: 26px; left: 0; }
+.virtual-grid-col-header { width: var(--cell-width); height: 28px; top: 0; }
+.virtual-grid-corner { width: var(--row-header-width); height: 28px; left: 0; top: 0; z-index: 6; }
+.virtual-grid-cell.selected { box-shadow: inset 0 0 0 2px var(--green); z-index: 3; overflow: visible; }
+.virtual-grid-cell.range-selected { background: var(--green-soft); }
+.virtual-grid-cell.selection-anchor { background: #fff; box-shadow: inset 0 0 0 2px var(--green); }
+.virtual-grid-cell.formula-cell { color: #0b5f31; }
+.virtual-grid-cell.error-cell { color: var(--danger); }
+.virtual-grid-cell.editing { white-space: pre; overflow: visible; box-shadow: inset 0 0 0 2px var(--green); z-index: 5; }
+.virtual-grid-cell.range-top { border-top: 2px solid var(--green); }
+.virtual-grid-cell.range-bottom { border-bottom: 2px solid var(--green); }
+.virtual-grid-cell.range-left { border-left: 2px solid var(--green); }
+.virtual-grid-cell.range-right { border-right: 2px solid var(--green); }
+.virtual-grid-cell.reference-range { background: #eaf1ff; }
+.virtual-grid-cell.reference-top { border-top: 2px solid #2563eb; }
+.virtual-grid-cell.reference-bottom { border-bottom: 2px solid #2563eb; }
+.virtual-grid-cell.reference-left { border-left: 2px solid #2563eb; }
+.virtual-grid-cell.reference-right { border-right: 2px solid #2563eb; }
