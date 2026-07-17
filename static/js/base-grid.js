@@ -73,24 +73,22 @@
 
   function formatValue(value, type) {
     if (value === null || value === undefined) return '';
-    if (type === 'json') {
+    if (type === 'json' && typeof value !== 'string') {
       try { return JSON.stringify(value); } catch { return String(value); }
     }
-    if (type === 'boolean') return value ? 'true' : 'false';
-    if (type === 'datetime') return String(value).slice(0, 16);
+    if (type === 'boolean' && typeof value === 'boolean') return value ? 'true' : 'false';
+    if (type === 'datetime' && typeof value === 'string' && !value.trimStart().startsWith('=')) return value.slice(0, 16);
     return String(value);
   }
 
   function inputValue(input, type) {
+    const value = input.value;
+    if (value.trimStart().startsWith('=')) return value;
     if (type === 'boolean') {
-      if (input.value === '') return null;
-      return input.value === 'true';
+      if (value === '') return null;
+      return value === 'true';
     }
-    return input.value;
-  }
-
-  function formulaLike(value) {
-    return typeof value === 'string' && value.trimStart().startsWith('=');
+    return value;
   }
 
   function renderHeader() {
@@ -131,23 +129,16 @@
   function createEditor(row, column) {
     const type = column.data_type;
     const value = row.values?.[column.column_key];
-    let input;
-    if (type === 'boolean') {
-      input = document.createElement('select');
-      input.innerHTML = '<option value="">—</option><option value="true">Verdadeiro</option><option value="false">Falso</option>';
-      input.value = value === true ? 'true' : value === false ? 'false' : '';
-    } else {
-      input = document.createElement('input');
-      input.type = type === 'number' ? 'number' : type === 'date' ? 'date' : type === 'datetime' ? 'datetime-local' : 'text';
-      if (type === 'number') input.step = 'any';
-      input.value = formatValue(value, type);
-      input.spellcheck = type === 'text';
-    }
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = formatValue(value, type);
+    input.spellcheck = type === 'text';
+    input.autocomplete = 'off';
     input.disabled = !state.editable;
     input.dataset.original = input.value;
     input.addEventListener('input', () => {
       input.dataset.dirty = String(input.value !== input.dataset.original);
-      input.dataset.error = String(formulaLike(input.value));
+      input.dataset.error = 'false';
     });
     input.addEventListener('keydown', event => {
       if (event.key === 'Enter') {
@@ -295,11 +286,6 @@
   }
 
   async function saveCell(row, column, input) {
-    if (formulaLike(input.value)) {
-      input.dataset.error = 'true';
-      setStatus('Bases não aceitam fórmulas. Grave somente dados.', 'error');
-      return;
-    }
     input.disabled = true;
     setStatus(`Salvando ${column.name}…`);
     try {
