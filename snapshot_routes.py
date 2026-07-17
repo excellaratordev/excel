@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 
 from flask import Blueprint, jsonify
 
@@ -81,7 +82,7 @@ def save_render_snapshot(workbook_id: int):
             "workbook_id": workbook_id,
             "revision": revision,
             "payload": payload,
-            "updated_at": "now()",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
         },
         prefer="resolution=merge-duplicates,return=representation",
     )
