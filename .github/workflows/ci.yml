@@ -46,16 +46,26 @@ jobs:
         run: >-
           python -m compileall -q
           app.py asset_routes.py backend.py capability_backend.py projects_routes.py files_routes.py
-          workbook_routes.py base_routes.py base_elementar_automation.py collaboration_routes.py recovery_routes.py
-          roles_routes.py snapshot_routes.py performance_cache.py telemetry_routes.py github_connector.py
-          github_oauth.py github_sites.py elementar_routes.py elementar_automation_routes.py
-          elementar_automation_values.py elementar_realtime_delivery.py superexcel
+          workbook_routes.py base_routes.py base_reference_routes.py base_elementar_automation.py
+          collaboration_routes.py recovery_routes.py roles_routes.py snapshot_routes.py performance_cache.py
+          telemetry_routes.py github_connector.py github_oauth.py github_sites.py elementar_routes.py
+          elementar_automation_routes.py elementar_automation_values.py elementar_realtime_delivery.py superexcel
 
-      - name: Run Base pipeline tests
-        run: pytest -q tests/test_file_pipeline.py tests/test_base_pipeline_frontend.py
+      - name: Run Base pipeline and reference tests
+        run: >-
+          pytest -q
+          tests/test_file_pipeline.py
+          tests/test_base_pipeline_frontend.py
+          tests/test_base_reference_routes.py
+          tests/test_base_reference_panel_frontend.py
 
       - name: Run existing backend and architecture tests
-        run: pytest -q --ignore=tests/test_file_pipeline.py --ignore=tests/test_base_pipeline_frontend.py
+        run: >-
+          pytest -q
+          --ignore=tests/test_file_pipeline.py
+          --ignore=tests/test_base_pipeline_frontend.py
+          --ignore=tests/test_base_reference_routes.py
+          --ignore=tests/test_base_reference_panel_frontend.py
 
       - name: Validate JavaScript syntax
         run: |
@@ -69,6 +79,8 @@ jobs:
           node --check static/js/github-connector.js
           node --check static/js/elementar-manager.js
           node --check static/js/base-grid.js
+          node --check static/js/base-reference-panel.js
+          node --check static/js/base-reference-focus-bridge.js
           node --check static/js/elementar-sheet.js
           node --check static/js/elementar-source-sync.js
           node --check static/js/elementar-auto-publish-client.js
@@ -78,6 +90,7 @@ jobs:
           node --check static/js/calculation/function-library.js
           node --check static/js/calculation/formula-catalog.js
           node --check static/js/calculation/formula-runtime.js
+          node --check static/js/calculation/external-reference-runtime.js
           node --check static/js/calculation/logical-library.js
           node --check static/js/calculation/logical-localization-ptbr.js
           node --check static/js/calculation/enterprise-kernel.js
@@ -146,6 +159,10 @@ jobs:
           ! grep -Rni "static/vendor/supabase.js" templates
           grep -Rni "assets_api.supabase_browser_client" templates
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
+          grep -Rni "external-reference-runtime.js" templates/index.html
+          grep -Rni "base-reference-panel.js" templates/index.html
+          grep -Rni "base-reference-focus-bridge.js" templates/index.html
+          grep -Rni "base-reference-panel.css" templates/index.html
           grep -Rni "elementar-source-sync.js" templates/index.html
           grep -Rni "elementar-auto-publish-client.js" templates/index.html
           grep -Rni "base-grid.js" templates/base.html

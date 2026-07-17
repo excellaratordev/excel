@@ -1,0 +1,39 @@
+.base-reference-panel{min-width:0;display:flex;flex-direction:column;border:1px solid #dbe4df;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 10px 28px rgba(15,23,42,.07)}
+.base-reference-panel[hidden]{display:none!important}
+.base-reference-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:14px 14px 10px;border-bottom:1px solid #e8eeeb;background:linear-gradient(180deg,#f8fcfa,#fff)}
+.base-reference-title{display:flex;align-items:center;gap:10px;min-width:0}
+.base-reference-mark{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;background:#e9f7ef;color:#187b48;font-weight:900}
+.base-reference-title strong{display:block;color:#18251f;font-size:14px}
+.base-reference-title small{display:block;margin-top:2px;color:#6b7b73;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.base-reference-actions{display:flex;gap:6px}
+.base-reference-actions button{width:32px;height:32px;padding:0;border:1px solid #d8e3dd;border-radius:9px;background:#fff;color:#43534b;cursor:pointer}
+.base-reference-controls{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 12px;border-bottom:1px solid #edf1ef}
+.base-reference-controls select{min-width:0;height:36px;border:1px solid #ccd8d1;border-radius:9px;background:#fff;padding:0 10px;color:#203129;font:inherit}
+.base-reference-controls button{height:36px;border:1px solid #ccd8d1;border-radius:9px;background:#fff;padding:0 11px;color:#2e473a;font-weight:700;cursor:pointer}
+.base-reference-hint{padding:9px 12px;background:#f8faf9;color:#607067;font-size:11px;line-height:1.45;border-bottom:1px solid #edf1ef}
+.base-reference-hint code{color:#116b3d;font-weight:700}
+.base-reference-status{min-height:28px;padding:7px 12px;color:#63736b;font-size:11px;border-bottom:1px solid #edf1ef}
+.base-reference-status.error{color:#b42318;background:#fff6f5}
+.base-reference-grid{position:relative;flex:1;min-height:330px;background:#fff;overflow:auto;overscroll-behavior:contain;touch-action:none;outline:none}
+.base-reference-canvas{position:relative;min-width:100%;min-height:100%}
+.base-reference-corner,.base-reference-col-header,.base-reference-row-header,.base-reference-cell{position:absolute;box-sizing:border-box;border-right:1px solid #e5ebe8;border-bottom:1px solid #e5ebe8;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.base-reference-corner{z-index:5;background:#eff5f2}
+.base-reference-col-header{z-index:4;display:flex;align-items:center;padding:0 9px;background:#f3f7f5;color:#385046;font-size:11px;font-weight:800}
+.base-reference-row-header{z-index:3;display:flex;align-items:center;justify-content:center;background:#f7faf8;color:#718078;font-size:10px;font-variant-numeric:tabular-nums}
+.base-reference-cell{display:flex;align-items:center;padding:0 8px;background:#fff;color:#25352d;font-size:11px;cursor:crosshair;user-select:none}
+.base-reference-cell:hover{background:#f3faf6}
+.base-reference-cell.is-loading{color:#a0aca6;background:#fbfcfb}
+.base-reference-cell.selected{background:#dcf3e6;box-shadow:inset 0 0 0 1px #1b8b50}
+.base-reference-cell.range-selected{background:#e9f7ef}
+.base-reference-cell.range-top{border-top:2px solid #1b8b50}
+.base-reference-cell.range-bottom{border-bottom:2px solid #1b8b50}
+.base-reference-cell.range-left{border-left:2px solid #1b8b50}
+.base-reference-cell.range-right{border-right:2px solid #1b8b50}
+.base-reference-empty{display:grid;place-items:center;min-height:280px;padding:28px;text-align:center;color:#6b7b73}
+.base-reference-empty strong{display:block;color:#31443a;margin-bottom:5px}
+.base-reference-selection{min-height:35px;padding:9px 12px;border-top:1px solid #e8eeeb;background:#fafcfb;color:#355045;font-size:11px}
+#base-reference-mode-button.active{background:#e8f6ee;border-color:#9bd1b3;color:#146f40}
+body.base-reference-open .sheet-workspace{grid-template-columns:minmax(0,1fr) minmax(340px,390px)}
+body.base-reference-open .sheet-editor-column{min-width:0}
+@media(max-width:980px){body.base-reference-open .sheet-workspace{grid-template-columns:minmax(0,1fr) minmax(300px,36vw)}}
+@media(max-width:760px){body.base-reference-open .sheet-workspace{grid-template-columns:1fr}.base-reference-panel{min-height:420px}.base-reference-grid{min-height:300px}}

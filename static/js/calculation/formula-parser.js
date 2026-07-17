@@ -17,6 +17,10 @@
       .toUpperCase();
   }
 
+  function normalizeSourceName(value) {
+    return String(value || '').trim().toLocaleLowerCase('pt-BR');
+  }
+
   function isCellReference(value) {
     return /^\$?[A-Z]{1,3}\$?[1-9]\d*$/iu.test(String(value || ''));
   }
@@ -48,6 +52,7 @@
       const character = this.input[this.index];
 
       if (character === '"') return this.readString();
+      if (character === "'") return this.readQuotedIdentifier();
       if (/\d/u.test(character) || ((character === ',' || character === '.') && /\d/u.test(this.input[this.index + 1] || ''))) {
         return this.readNumber();
       }
@@ -69,6 +74,7 @@
         ';': 'ARG',
         ',': 'ARG',
         ':': 'COLON',
+        '!': 'BANG',
       };
       if (punctuation[character]) {
         this.index += 1;
@@ -102,6 +108,27 @@
         this.index += 1;
       }
       throw new FormulaSyntaxError('Texto sem fechamento', position);
+    }
+
+    readQuotedIdentifier() {
+      const position = this.index;
+      this.index += 1;
+      let value = '';
+      while (this.index < this.input.length) {
+        const character = this.input[this.index];
+        if (character === "'") {
+          if (this.input[this.index + 1] === "'") {
+            value += "'";
+            this.index += 2;
+            continue;
+          }
+          this.index += 1;
+          return { type: 'QUOTED_IDENT', value, position };
+        }
+        value += character;
+        this.index += 1;
+      }
+      throw new FormulaSyntaxError('Nome de Base sem fechamento', position);
     }
 
     readNumber() {
@@ -213,13 +240,48 @@
       return result;
     }
 
+    parseExternalReference(sourceToken) {
+      this.expect('BANG');
+      const startToken = this.expect('IDENT');
+      if (!isCellReference(startToken.value)) {
+        throw new FormulaSyntaxError('A célula da Base é inválida', startToken.position);
+      }
+      const start = parseCellReference(startToken.value);
+      if (this.accept('COLON')) {
+        const endToken = this.expect('IDENT');
+        if (!isCellReference(endToken.value)) {
+          throw new FormulaSyntaxError('O fim do intervalo da Base é inválido', endToken.position);
+        }
+        return {
+          type: 'externalRange',
+          source: sourceToken.value,
+          sourceKey: normalizeSourceName(sourceToken.value),
+          start,
+          end: parseCellReference(endToken.value),
+        };
+      }
+      return {
+        type: 'externalReference',
+        source: sourceToken.value,
+        sourceKey: normalizeSourceName(sourceToken.value),
+        ...start,
+      };
+    }
+
     parsePrimary() {
       if (this.current.type === 'NUMBER') return { type: 'literal', value: this.advance().value };
       if (this.current.type === 'STRING') return { type: 'literal', value: this.advance().value };
 
+      if (this.current.type === 'QUOTED_IDENT') {
+        const sourceToken = this.advance();
+        return this.parseExternalReference(sourceToken);
+      }
+
       if (this.current.type === 'IDENT') {
         const token = this.advance();
         const normalized = normalizeFunctionName(token.value);
+
+        if (this.current.type === 'BANG') return this.parseExternalReference(token);
 
         if (this.accept('LPAREN')) {
           const args = [];
@@ -265,6 +327,8 @@
   function collectDependencies(ast) {
     const cells = new Set();
     const ranges = [];
+    const external = [];
+    const sources = new Set();
 
     function visit(node) {
       if (!node || typeof node !== 'object') return;
@@ -281,6 +345,26 @@
         });
         return;
       }
+      if (node.type === 'externalReference') {
+        sources.add(node.sourceKey);
+        external.push({
+          source: node.source,
+          sourceKey: node.sourceKey,
+          start: { row: node.row, col: node.col },
+          end: { row: node.row, col: node.col },
+        });
+        return;
+      }
+      if (node.type === 'externalRange') {
+        sources.add(node.sourceKey);
+        external.push({
+          source: node.source,
+          sourceKey: node.sourceKey,
+          start: { ...node.start },
+          end: { ...node.end },
+        });
+        return;
+      }
       if (node.left) visit(node.left);
       if (node.right) visit(node.right);
       if (node.value && typeof node.value === 'object') visit(node.value);
@@ -288,13 +372,14 @@
     }
 
     visit(ast);
-    return { cells, ranges };
+    return { cells, ranges, external, sources };
   }
 
   window.SuperExcelFormulaParser = Object.freeze({
     FormulaSyntaxError,
     collectDependencies,
     normalizeFunctionName,
+    normalizeSourceName,
     parse,
     parseCellReference,
   });
