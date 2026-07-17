@@ -28,10 +28,11 @@ def test_formula_glossary_assets_load_in_safe_order() -> None:
 
     catalog = source.index("js/calculation/formula-catalog.js")
     runtime = source.index("js/calculation/formula-runtime.js")
+    logical = source.index("js/calculation/logical-library.js")
     bootstrap = source.index("js/sheet-bootstrap-v2.js")
     glossary = source.index("js/formula-glossary.js")
 
-    assert catalog < runtime < bootstrap < glossary
+    assert catalog < runtime < logical < bootstrap < glossary
     assert "css/formula-glossary.css" in source
 
 
