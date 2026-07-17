@@ -3,6 +3,10 @@ from __future__ import annotations
 import os
 
 import backend
+from capability_backend import install as install_capabilities
+
+install_capabilities(backend)
+
 import workbook_routes
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
