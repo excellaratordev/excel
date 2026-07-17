@@ -3,8 +3,11 @@
 
   const Store = window.SuperExcelSparseStore?.SparseWorkbookStore;
   const viewportRange = window.SuperExcelViewport?.viewportRange;
+  const Interaction = window.SuperExcelGridInteraction;
   const engineApi = window.SuperExcelFormulaEngine;
-  if (!Store || !viewportRange || !engineApi) throw new Error('Módulos da grade virtual não foram carregados.');
+  if (!Store || !viewportRange || !Interaction || !engineApi) {
+    throw new Error('Módulos da grade virtual não foram carregados.');
+  }
 
   const ROW_HEIGHT = 26;
   const COL_WIDTH = 118;
@@ -54,7 +57,7 @@
   let engine = null;
   let selected = { row: 0, col: 0 };
   let selection = { startRow: 0, startCol: 0, endRow: 0, endCol: 0 };
-  let editing = false;
+  let editing = null;
   let applyingRemote = 0;
   let renderFrame = null;
   let persistTimer = null;
@@ -64,6 +67,7 @@
   let lastRenderMs = 0;
 
   grid.classList.add('virtual-grid');
+  grid.tabIndex = 0;
   const canvas = document.createElement('div');
   canvas.className = 'virtual-grid-canvas';
   grid.append(canvas);
@@ -77,15 +81,13 @@
   }
 
   function cellAddress(row, col) { return `${colName(col)}${row + 1}`; }
-  function bounds(value = selection) {
-    return {
-      top: Math.min(value.startRow, value.endRow), bottom: Math.max(value.startRow, value.endRow),
-      left: Math.min(value.startCol, value.endCol), right: Math.max(value.startCol, value.endCol),
-    };
-  }
+  function bounds(value = selection) { return Interaction.normalizeBounds(value); }
   function clampRow(value) { return Math.max(0, Math.min(MAX_ROWS - 1, Number(value) || 0)); }
   function clampCol(value) { return Math.max(0, Math.min(MAX_COLS - 1, Number(value) || 0)); }
   function setStatus(text, error = false) { status.textContent = text; status.classList.toggle('error', error); }
+  function focusGrid() {
+    if (document.activeElement !== grid) grid.focus({ preventScroll: true });
+  }
 
   function parseInput(value) {
     const text = String(value ?? '').trim();
@@ -99,7 +101,10 @@
   function engineMatrix() {
     let lastRow = -1;
     let lastCol = -1;
-    for (const { row, col } of store.entries()) { lastRow = Math.max(lastRow, row); lastCol = Math.max(lastCol, col); }
+    for (const { row, col } of store.entries()) {
+      lastRow = Math.max(lastRow, row);
+      lastCol = Math.max(lastCol, col);
+    }
     if (lastRow < 0 || lastCol < 0) return [];
     const matrix = Array.from({ length: lastRow + 1 }, () => Array(lastCol + 1).fill(null));
     for (const { row, col, value } of store.entries()) matrix[row][col] = value;
@@ -141,18 +146,20 @@
   }
 
   function selectionClasses(row, col) {
-    const b = bounds();
+    const selectedBounds = bounds();
     const classes = [];
-    const inside = row >= b.top && row <= b.bottom && col >= b.left && col <= b.right;
+    const inside = row >= selectedBounds.top && row <= selectedBounds.bottom
+      && col >= selectedBounds.left && col <= selectedBounds.right;
     if (!inside) return classes;
-    if (b.top === b.bottom && b.left === b.right) classes.push('selected');
-    else {
+    if (selectedBounds.top === selectedBounds.bottom && selectedBounds.left === selectedBounds.right) {
+      classes.push('selected');
+    } else {
       classes.push('range-selected');
       if (row === selected.row && col === selected.col) classes.push('selection-anchor');
-      if (row === b.top) classes.push('range-top');
-      if (row === b.bottom) classes.push('range-bottom');
-      if (col === b.left) classes.push('range-left');
-      if (col === b.right) classes.push('range-right');
+      if (row === selectedBounds.top) classes.push('range-top');
+      if (row === selectedBounds.bottom) classes.push('range-bottom');
+      if (col === selectedBounds.left) classes.push('range-left');
+      if (col === selectedBounds.right) classes.push('range-right');
     }
     return classes;
   }
@@ -162,10 +169,16 @@
     const started = performance.now();
     updateCanvasSize();
     const range = viewportRange({
-      scrollTop: shell.scrollTop, scrollLeft: shell.scrollLeft,
-      viewportHeight: shell.clientHeight, viewportWidth: shell.clientWidth,
-      rows: store.rows, cols: store.cols, rowHeight: ROW_HEIGHT, cellWidth: COL_WIDTH,
-      headerHeight: HEADER_HEIGHT, rowHeaderWidth: ROW_HEADER_WIDTH,
+      scrollTop: shell.scrollTop,
+      scrollLeft: shell.scrollLeft,
+      viewportHeight: shell.clientHeight,
+      viewportWidth: shell.clientWidth,
+      rows: store.rows,
+      cols: store.cols,
+      rowHeight: ROW_HEIGHT,
+      cellWidth: COL_WIDTH,
+      headerHeight: HEADER_HEIGHT,
+      rowHeaderWidth: ROW_HEADER_WIDTH,
     });
     clearVisible();
     const fragment = document.createDocumentFragment();
@@ -183,6 +196,7 @@
       fragment.append(header);
       visibleHeaders.push(header);
     }
+
     for (let row = range.top; row <= range.bottom; row += 1) {
       const header = document.createElement('div');
       header.className = 'virtual-grid-row-header';
@@ -190,27 +204,33 @@
       header.style.transform = `translate(${shell.scrollLeft}px, ${HEADER_HEIGHT + row * ROW_HEIGHT}px)`;
       fragment.append(header);
       visibleHeaders.push(header);
+
       for (let col = range.left; col <= range.right; col += 1) {
         const cell = document.createElement('div');
+        cell.id = `grid-cell-${row}-${col}`;
         cell.className = 'virtual-grid-cell cell';
         cell.dataset.row = String(row);
         cell.dataset.col = String(col);
-        cell.tabIndex = -1;
         cell.style.transform = `translate(${ROW_HEADER_WIDTH + col * COL_WIDTH}px, ${HEADER_HEIGHT + row * ROW_HEIGHT}px)`;
         const source = store.get(row, col);
         const shown = displayValue(row, col);
-        cell.textContent = editing && row === selected.row && col === selected.col ? formula.value : shown;
+        const editingThisCell = editing && row === editing.row && col === editing.col;
+        cell.textContent = editingThisCell ? formula.value : shown;
         if (typeof source === 'string' && source.trimStart().startsWith('=')) cell.classList.add('formula-cell');
         if (shown.startsWith('#')) cell.classList.add('error-cell');
-        if (editing && row === selected.row && col === selected.col) cell.classList.add('editing');
+        if (editingThisCell) cell.classList.add('editing');
         cell.classList.add(...selectionClasses(row, col));
         visibleCells.set(`${row}:${col}`, cell);
         fragment.append(cell);
       }
     }
+
     canvas.append(fragment);
+    grid.setAttribute('aria-activedescendant', `grid-cell-${selected.row}-${selected.col}`);
     lastRenderMs = performance.now() - started;
-    window.dispatchEvent(new CustomEvent('superexcel:render-metrics', { detail: { render_ms: lastRenderMs, dom_cells: visibleCells.size } }));
+    window.dispatchEvent(new CustomEvent('superexcel:render-metrics', {
+      detail: { render_ms: lastRenderMs, dom_cells: visibleCells.size },
+    }));
   }
 
   function scheduleRender() {
@@ -219,20 +239,24 @@
   }
 
   function updateSelectionUi() {
-    const b = bounds();
-    addressBox.textContent = b.top === b.bottom && b.left === b.right
+    const selectedBounds = bounds();
+    addressBox.textContent = selectedBounds.top === selectedBounds.bottom && selectedBounds.left === selectedBounds.right
       ? cellAddress(selected.row, selected.col)
-      : `${cellAddress(b.top, b.left)}:${cellAddress(b.bottom, b.right)}`;
+      : `${cellAddress(selectedBounds.top, selectedBounds.left)}:${cellAddress(selectedBounds.bottom, selectedBounds.right)}`;
     if (!editing) formula.value = store.get(selected.row, selected.col) ?? '';
-    const count = (b.bottom - b.top + 1) * (b.right - b.left + 1);
+
+    const count = (selectedBounds.bottom - selectedBounds.top + 1)
+      * (selectedBounds.right - selectedBounds.left + 1);
     let filled = 0;
     let numericCount = 0;
     let sum = 0;
-    for (let row = b.top; row <= b.bottom; row += 1) {
-      for (let col = b.left; col <= b.right; col += 1) {
-        const value = engine.getCellValue({ sheet: 0, row, col });
-        if (value !== null && value !== '') filled += 1;
-        if (typeof value === 'number' && Number.isFinite(value)) { numericCount += 1; sum += value; }
+    for (const { row, col } of store.entries()) {
+      if (row < selectedBounds.top || row > selectedBounds.bottom || col < selectedBounds.left || col > selectedBounds.right) continue;
+      const value = engine.getCellValue({ sheet: 0, row, col });
+      if (value !== null && value !== '') filled += 1;
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        numericCount += 1;
+        sum += value;
       }
     }
     const parts = count === 1 ? [] : [`${count} células selecionadas`];
@@ -242,21 +266,50 @@
     scheduleRender();
   }
 
+  function ensureCellVisible(row, col) {
+    const top = HEADER_HEIGHT + row * ROW_HEIGHT;
+    const bottom = top + ROW_HEIGHT;
+    const left = ROW_HEADER_WIDTH + col * COL_WIDTH;
+    const right = left + COL_WIDTH;
+    const visibleTop = shell.scrollTop + HEADER_HEIGHT;
+    const visibleBottom = shell.scrollTop + shell.clientHeight;
+    const visibleLeft = shell.scrollLeft + ROW_HEADER_WIDTH;
+    const visibleRight = shell.scrollLeft + shell.clientWidth;
+    if (top < visibleTop) shell.scrollTop = Math.max(0, top - HEADER_HEIGHT);
+    else if (bottom > visibleBottom) shell.scrollTop = Math.max(0, bottom - shell.clientHeight);
+    if (left < visibleLeft) shell.scrollLeft = Math.max(0, left - ROW_HEADER_WIDTH);
+    else if (right > visibleRight) shell.scrollLeft = Math.max(0, right - shell.clientWidth);
+  }
+
   function selectCell(row, col, focus = true) {
     selected = { row: clampRow(row), col: clampCol(col) };
     selection = { startRow: selected.row, startCol: selected.col, endRow: selected.row, endCol: selected.col };
-    editing = false;
+    editing = null;
+    ensureCellVisible(selected.row, selected.col);
     updateSelectionUi();
-    if (focus) requestAnimationFrame(() => visibleCells.get(`${selected.row}:${selected.col}`)?.focus({ preventScroll: true }));
+    if (focus) focusGrid();
+  }
+
+  function extendSelection(rowDelta, colDelta) {
+    selection.endRow = clampRow(selection.endRow + rowDelta);
+    selection.endCol = clampCol(selection.endCol + colDelta);
+    ensureCellVisible(selection.endRow, selection.endCol);
+    updateSelectionUi();
+    focusGrid();
   }
 
   function emitChanges(changes, reason = 'edit') {
     if (applyingRemote || !changes.length) return;
-    window.dispatchEvent(new CustomEvent('superexcel:changes', { detail: { changes, reason, name: nameInput.value.trim() || 'Minha Planilha' } }));
+    window.dispatchEvent(new CustomEvent('superexcel:changes', {
+      detail: { changes, reason, name: nameInput.value.trim() || 'Minha Planilha' },
+    }));
   }
+
   function emitName() {
     if (applyingRemote) return;
-    window.dispatchEvent(new CustomEvent('superexcel:name', { detail: { name: nameInput.value.trim() || 'Minha Planilha' } }));
+    window.dispatchEvent(new CustomEvent('superexcel:name', {
+      detail: { name: nameInput.value.trim() || 'Minha Planilha' },
+    }));
   }
 
   function persistNow() {
@@ -264,26 +317,39 @@
     try { localStorage.setItem(AUTOSAVE, JSON.stringify(store.toPayload(nameInput.value))); }
     catch (error) { console.warn('Autosave local indisponível.', error); }
   }
-  function persistSoon() { clearTimeout(persistTimer); persistTimer = setTimeout(persistNow, 700); }
+
+  function persistSoon() {
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(persistNow, 700);
+  }
 
   function applyChanges(changes, options = {}) {
-    const normalized = [];
+    const deduplicated = new Map();
     for (const item of Array.isArray(changes) ? changes : []) {
-      const row = Number(item?.row); const col = Number(item?.col);
-      if (!Number.isInteger(row) || !Number.isInteger(col) || row < 0 || col < 0 || row >= MAX_ROWS || col >= MAX_COLS) {
+      const row = Number(item?.row);
+      const col = Number(item?.col);
+      if (!Number.isInteger(row) || !Number.isInteger(col)
+        || row < 0 || col < 0 || row >= MAX_ROWS || col >= MAX_COLS) {
         if (options.remote) return { requiresReload: true, applied: 0 };
         continue;
       }
-      normalized.push({ row, col, value: item?.value ?? null });
+      deduplicated.set(`${row}:${col}`, { row, col, value: item?.value ?? null });
     }
+    const normalized = [...deduplicated.values()];
     if (!normalized.length) return { requiresReload: false, applied: 0 };
+
     engine.suspendEvaluation?.();
     try {
       for (const change of normalized) {
         store.set(change.row, change.col, change.value);
-        engine.setCellContents({ sheet: 0, row: change.row, col: change.col }, [[engineApi.normalizeFormula(change.value)]]);
+        engine.setCellContents(
+          { sheet: 0, row: change.row, col: change.col },
+          [[engineApi.normalizeFormula(change.value)]],
+        );
       }
-    } finally { engine.resumeEvaluation?.(); }
+    } finally {
+      engine.resumeEvaluation?.();
+    }
     persistSoon();
     scheduleRender();
     if (!options.remote) emitChanges(normalized, options.reason || 'batch');
@@ -291,49 +357,86 @@
   }
 
   function commit(value) {
+    const target = editing ? { ...editing } : { ...selected };
     const parsed = parseInput(value);
-    const before = store.get(selected.row, selected.col);
+    const before = store.get(target.row, target.col);
     try {
-      applyChanges([{ row: selected.row, col: selected.col, value: parsed }], { reason: 'edit' });
-      editing = false;
+      if (JSON.stringify(before) !== JSON.stringify(parsed)) {
+        applyChanges([{ row: target.row, col: target.col, value: parsed }], { reason: 'edit' });
+      }
+      editing = null;
+      selected = target;
+      selection = { startRow: target.row, startCol: target.col, endRow: target.row, endCol: target.col };
       formula.value = parsed ?? '';
-      if (JSON.stringify(before) === JSON.stringify(parsed)) scheduleRender();
       setStatus('Alteração calculada');
       updateSelectionUi();
       return true;
-    } catch (error) { setStatus(error.message || 'Erro ao calcular.', true); return false; }
+    } catch (error) {
+      setStatus(error.message || 'Erro ao calcular.', true);
+      scheduleRender();
+      return false;
+    }
   }
 
   function startEdit(initialValue) {
-    editing = true;
-    formula.value = initialValue !== undefined ? initialValue : (store.get(selected.row, selected.col) ?? '');
+    if (!editing) editing = { ...selected };
+    selected = { ...editing };
+    selection = { startRow: editing.row, startCol: editing.col, endRow: editing.row, endCol: editing.col };
+    formula.value = initialValue !== undefined ? initialValue : (store.get(editing.row, editing.col) ?? '');
+    updateSelectionUi();
     formula.focus({ preventScroll: true });
-    const end = formula.value.length;
-    formula.setSelectionRange(end, end);
-    scheduleRender();
-  }
-
-  function clearSelection() {
-    const b = bounds();
-    const changes = [];
-    for (let row = b.top; row <= b.bottom; row += 1) for (let col = b.left; col <= b.right; col += 1) {
-      if (store.has(row, col)) changes.push({ row, col, value: null });
-      if (changes.length >= MAX_PATCH_CHANGES) break;
-    }
-    applyChanges(changes, { reason: 'clear' });
-    setStatus('Conteúdo apagado');
-  }
-
-  function moveSelection(dr, dc) {
-    selectCell(selected.row + dr, selected.col + dc, false);
-    shell.scrollTo({
-      top: Math.max(0, selected.row * ROW_HEIGHT - shell.clientHeight / 2),
-      left: Math.max(0, selected.col * COL_WIDTH - shell.clientWidth / 2),
-      behavior: 'auto',
+    requestAnimationFrame(() => {
+      const end = formula.value.length;
+      formula.setSelectionRange(end, end);
     });
   }
 
+  function cancelEdit() {
+    const target = editing ? { ...editing } : { ...selected };
+    editing = null;
+    selected = target;
+    selection = { startRow: target.row, startCol: target.col, endRow: target.row, endCol: target.col };
+    formula.value = store.get(target.row, target.col) ?? '';
+    updateSelectionUi();
+    focusGrid();
+  }
+
+  function clearSelection() {
+    const changes = Interaction.collectClearChanges(store, selection, MAX_PATCH_CHANGES);
+    if (!changes.length) {
+      setStatus('A seleção já está vazia');
+      focusGrid();
+      return;
+    }
+    applyChanges(changes, { reason: 'clear' });
+    setStatus(`${changes.length} célula(s) apagada(s)`);
+    updateSelectionUi();
+    focusGrid();
+  }
+
+  function moveSelection(rowDelta, colDelta) {
+    if (editing && !commit(formula.value)) return;
+    selectCell(selected.row + rowDelta, selected.col + colDelta);
+  }
+
+  function snapshotDiff(beforeEntries, afterStore) {
+    const previous = new Map(beforeEntries.map(item => [`${item.row}:${item.col}`, item.value]));
+    const next = new Map([...afterStore.entries()].map(item => [`${item.row}:${item.col}`, item.value]));
+    const changes = [];
+    const keys = new Set([...previous.keys(), ...next.keys()]);
+    for (const key of keys) {
+      const before = previous.get(key) ?? null;
+      const after = next.get(key) ?? null;
+      if (JSON.stringify(before) === JSON.stringify(after)) continue;
+      const [row, col] = key.split(':').map(Number);
+      changes.push({ row, col, value: after });
+      if (changes.length >= MAX_PATCH_CHANGES) break;
+    }
+    return changes;
+  }
+
   function replaceSnapshot(payload) {
+    editing = null;
     store = new Store(payload || {}, { maxRows: MAX_ROWS, maxCols: MAX_COLS });
     nameInput.value = payload?.name || 'Minha Planilha';
     rebuildEngine();
@@ -346,12 +449,20 @@
     const next = [];
     const previous = new Map([...store.entries()].map(item => [`${item.row}:${item.col}`, item.value]));
     const seen = new Set();
-    serialized.forEach((row, r) => row.forEach((value, c) => {
-      const key = `${r}:${c}`; seen.add(key);
-      if (JSON.stringify(previous.get(key) ?? null) !== JSON.stringify(value ?? null)) next.push({ row: r, col: c, value: value ?? null });
+    serialized.forEach((row, rowIndex) => row.forEach((value, colIndex) => {
+      const key = `${rowIndex}:${colIndex}`;
+      seen.add(key);
+      if (JSON.stringify(previous.get(key) ?? null) !== JSON.stringify(value ?? null)) {
+        next.push({ row: rowIndex, col: colIndex, value: value ?? null });
+      }
     }));
-    for (const [key] of previous) if (!seen.has(key)) { const [row, col] = key.split(':').map(Number); next.push({ row, col, value: null }); }
+    for (const [key] of previous) {
+      if (seen.has(key)) continue;
+      const [row, col] = key.split(':').map(Number);
+      next.push({ row, col, value: null });
+    }
     applyChanges(next, { reason });
+    updateSelectionUi();
   }
 
   function renderFunctions() {
@@ -388,56 +499,117 @@
 
   shell.addEventListener('scroll', scheduleRender, { passive: true });
   window.addEventListener('resize', scheduleRender, { passive: true });
+
   grid.addEventListener('mousedown', event => {
     const target = event.target.closest('.virtual-grid-cell');
     if (!target || event.button !== 0) return;
     event.preventDefault();
-    const row = Number(target.dataset.row); const col = Number(target.dataset.col);
+    const row = Number(target.dataset.row);
+    const col = Number(target.dataset.col);
     if (editing && !commit(formula.value)) return;
     selected = { row, col };
     selection = { startRow: row, startCol: col, endRow: row, endCol: col };
     dragSelection = { row, col };
     updateSelectionUi();
+    focusGrid();
   });
+
   grid.addEventListener('mousemove', event => {
     if (!dragSelection) return;
     const target = event.target.closest('.virtual-grid-cell');
     if (!target) return;
-    selection.endRow = Number(target.dataset.row); selection.endCol = Number(target.dataset.col);
+    selection.endRow = clampRow(target.dataset.row);
+    selection.endCol = clampCol(target.dataset.col);
     updateSelectionUi();
   });
-  window.addEventListener('mouseup', () => { dragSelection = null; });
-  grid.addEventListener('dblclick', event => { if (event.target.closest('.virtual-grid-cell')) startEdit(); });
-  grid.addEventListener('keydown', event => {
-    const movement = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1], Enter: [1, 0], Tab: [0, event.shiftKey ? -1 : 1] };
-    if (movement[event.key]) { event.preventDefault(); moveSelection(...movement[event.key]); }
-    else if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); clearSelection(); }
-    else if (event.key === 'F2') { event.preventDefault(); startEdit(); }
-    else if (!event.ctrlKey && !event.metaKey && !event.altKey && event.key.length === 1) { event.preventDefault(); startEdit(event.key); }
+
+  window.addEventListener('mouseup', () => {
+    if (!dragSelection) return;
+    dragSelection = null;
+    focusGrid();
   });
-  grid.addEventListener('paste', event => {
-    const text = event.clipboardData?.getData('text/plain'); if (!text) return;
+
+  grid.addEventListener('dblclick', event => {
+    if (event.target.closest('.virtual-grid-cell')) startEdit();
+  });
+
+  grid.addEventListener('keydown', event => {
+    const action = Interaction.keyboardAction(event);
+    if (!action) return;
     event.preventDefault();
-    const matrix = text.replace(/\r/g, '').split('\n').filter((line, i, lines) => line || i < lines.length - 1).map(row => row.split('\t').map(parseInput));
+    event.stopPropagation();
+    if (action.type === 'move') moveSelection(action.rowDelta, action.colDelta);
+    else if (action.type === 'extend') extendSelection(action.rowDelta, action.colDelta);
+    else if (action.type === 'clear') clearSelection();
+    else if (action.type === 'edit') startEdit(action.initialValue);
+  });
+
+  grid.addEventListener('paste', event => {
+    const text = event.clipboardData?.getData('text/plain');
+    if (!text) return;
+    event.preventDefault();
+    const matrix = text.replace(/\r/g, '').split('\n')
+      .filter((line, index, lines) => line || index < lines.length - 1)
+      .map(row => row.split('\t').map(parseInput));
     const changes = [];
-    matrix.forEach((row, ro) => row.forEach((value, co) => {
-      const targetRow = selected.row + ro; const targetCol = selected.col + co;
+    matrix.forEach((row, rowOffset) => row.forEach((value, colOffset) => {
+      const targetRow = selected.row + rowOffset;
+      const targetCol = selected.col + colOffset;
       if (targetRow < MAX_ROWS && targetCol < MAX_COLS) changes.push({ row: targetRow, col: targetCol, value });
     }));
     applyChanges(changes, { reason: 'paste' });
     setStatus(`${matrix.length} linha(s) colada(s)`);
+    updateSelectionUi();
+    focusGrid();
   });
-  formula.addEventListener('focus', () => { if (!editing) startEdit(); });
-  formula.addEventListener('input', scheduleRender);
+
+  formula.addEventListener('focus', () => {
+    if (!editing) startEdit();
+  });
+  formula.addEventListener('input', () => {
+    if (editing) {
+      summary.textContent = formula.value ? `Editando: ${formula.value}` : '';
+      scheduleRender();
+    }
+  });
   formula.addEventListener('keydown', event => {
-    if (event.key === 'Enter') { event.preventDefault(); if (commit(formula.value)) moveSelection(1, 0); }
-    else if (event.key === 'Escape') { event.preventDefault(); editing = false; formula.value = store.get(selected.row, selected.col) ?? ''; scheduleRender(); }
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (commit(formula.value)) moveSelection(1, 0);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      cancelEdit();
+    }
   });
-  nameInput.addEventListener('input', () => { store.name = nameInput.value; persistSoon(); emitName(); });
+  formula.addEventListener('blur', () => {
+    const target = editing;
+    if (!target) return;
+    queueMicrotask(() => {
+      if (!editing || editing.row !== target.row || editing.col !== target.col) return;
+      if (document.activeElement === formula) return;
+      commit(formula.value);
+    });
+  });
+
+  nameInput.addEventListener('input', () => {
+    store.name = nameInput.value;
+    persistSoon();
+    emitName();
+  });
+
   $('#clear-button').onclick = clearSelection;
   $('#functions-button').onclick = () => functionsDialog.showModal();
   $('#open-button').onclick = () => listServer().catch(error => setStatus(error.message, true));
-  $('#new-button').onclick = () => { store.clear(); nameInput.value = 'Minha Planilha'; rebuildEngine(); selectCell(0, 0); emitName(); };
+  $('#new-button').onclick = () => {
+    const changes = [...store.entries()].slice(0, MAX_PATCH_CHANGES)
+      .map(item => ({ row: item.row, col: item.col, value: null }));
+    store.clear();
+    nameInput.value = 'Minha Planilha';
+    rebuildEngine();
+    selectCell(0, 0);
+    emitChanges(changes, 'new');
+    emitName();
+  };
   $('#example-button').onclick = () => applyChanges([
     { row: 0, col: 0, value: 'Produto' }, { row: 0, col: 1, value: 'Status' }, { row: 0, col: 2, value: 'Valor' },
     { row: 1, col: 0, value: 'Porta bronze' }, { row: 1, col: 1, value: 'Pago' }, { row: 1, col: 2, value: 3200 },
@@ -446,23 +618,47 @@
   ], { reason: 'example' });
   $('#export-button').onclick = () => {
     const blob = new Blob([JSON.stringify(store.toPayload(nameInput.value), null, 2)], { type: 'application/json' });
-    const anchor = document.createElement('a'); anchor.href = URL.createObjectURL(blob); anchor.download = 'planilha.json'; anchor.click(); URL.revokeObjectURL(anchor.href);
+    const anchor = document.createElement('a');
+    anchor.href = URL.createObjectURL(blob);
+    anchor.download = 'planilha.json';
+    anchor.click();
+    URL.revokeObjectURL(anchor.href);
   };
   $('#import-input').onchange = async event => {
-    const file = event.target.files[0]; if (!file) return;
+    const file = event.target.files[0];
+    if (!file) return;
+    const previous = [...store.entries()];
     replaceSnapshot(JSON.parse(await file.text()));
-    emitChanges([...store.entries()].map(item => ({ row: item.row, col: item.col, value: item.value })), 'replace');
+    emitChanges(snapshotDiff(previous, store), 'replace');
     event.target.value = '';
   };
-  $('#undo-button').onclick = () => { if (engine.isThereSomethingToUndo()) { engine.undo(); syncFromEngine('undo'); } };
-  $('#redo-button').onclick = () => { if (engine.isThereSomethingToRedo()) { engine.redo(); syncFromEngine('redo'); } };
-  document.querySelectorAll('[data-close-dialog]').forEach(button => button.onclick = () => document.querySelector(`#${button.dataset.closeDialog}`).close());
-  window.addEventListener('beforeunload', persistNow);
+  $('#undo-button').onclick = () => {
+    if (engine.isThereSomethingToUndo()) {
+      engine.undo();
+      syncFromEngine('undo');
+    }
+    focusGrid();
+  };
+  $('#redo-button').onclick = () => {
+    if (engine.isThereSomethingToRedo()) {
+      engine.redo();
+      syncFromEngine('redo');
+    }
+    focusGrid();
+  };
+  document.querySelectorAll('[data-close-dialog]').forEach(button => {
+    button.onclick = () => document.querySelector(`#${button.dataset.closeDialog}`).close();
+  });
+  window.addEventListener('beforeunload', () => {
+    if (editing) commit(formula.value);
+    persistNow();
+  });
 
   nameInput.value = store.name;
   rebuildEngine();
   renderFunctions();
   updateSelectionUi();
+  focusGrid();
 
   window.SuperExcelApp = Object.freeze({
     get rows() { return store.rows; },
@@ -470,14 +666,25 @@
     getSnapshot: () => store.toPayload(nameInput.value),
     getStoreStats: () => store.stats(),
     getDomStats: () => ({ render_ms: lastRenderMs, mounted_cells: visibleCells.size }),
-    isEditing: () => editing,
+    isEditing: () => Boolean(editing),
     getRenderStats: () => ({ render_ms: lastRenderMs, dom_cells: visibleCells.size }),
     applyRemoteChanges(changes, metadata = {}) {
       applyingRemote += 1;
-      try { if (metadata.name) { nameInput.value = metadata.name; store.name = metadata.name; } return applyChanges(changes, { remote: true }); }
+      try {
+        if (metadata.name) {
+          nameInput.value = metadata.name;
+          store.name = metadata.name;
+        }
+        return applyChanges(changes, { remote: true });
+      } finally {
+        applyingRemote -= 1;
+      }
+    },
+    replaceSnapshot(payload) {
+      applyingRemote += 1;
+      try { replaceSnapshot(payload); }
       finally { applyingRemote -= 1; }
     },
-    replaceSnapshot(payload) { applyingRemote += 1; try { replaceSnapshot(payload); } finally { applyingRemote -= 1; } },
     flushLocal: persistNow,
     setWorkbookId(value) { workbookId = Number(value) || workbookId; },
   });
