@@ -16,6 +16,7 @@ github_sites_api = Blueprint("github_sites_api", __name__)
 SITE_SLUG_PATTERN = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$")
 HTML_MIME_TYPE = "text/html; charset=utf-8"
 SITE_CACHE_CONTROL = os.getenv("GITHUB_SITES_CACHE_CONTROL", "public, max-age=30, stale-while-revalidate=120")
+PREVIEW_SANDBOX_POLICY = "sandbox allow-scripts allow-forms allow-modals allow-popups allow-downloads"
 
 
 def _clean_host(value: str | None) -> str:
@@ -63,7 +64,7 @@ def public_site_url(slug: str, site_path: str = "") -> str | None:
     if not normalized_slug or not base_domain:
         return None
     clean_path = str(site_path or "").strip("/")
-    suffix = f"{quote(clean_path, safe='/')}" if clean_path else ""
+    suffix = quote(clean_path, safe="/") if clean_path else ""
     return f"{sites_scheme()}://{normalized_slug}.{base_domain}/{suffix}"
 
 
@@ -195,23 +196,33 @@ def _not_found_response() -> Response:
     )
 
 
-def _site_response(file_row: dict[str, Any]) -> Response:
+def _site_response(file_row: dict[str, Any], *, sandboxed: bool = False) -> Response:
     content = str(file_row.get("content") or "")
     response = Response(content, status=200, content_type=HTML_MIME_TYPE)
     blob_sha = str(file_row.get("blob_sha") or "").strip()
     if blob_sha:
         response.set_etag(blob_sha)
         response.make_conditional(request)
-    response.headers["Cache-Control"] = SITE_CACHE_CONTROL
+    response.headers["Cache-Control"] = "no-store" if sandboxed else SITE_CACHE_CONTROL
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
     response.headers["X-SuperExcel-Source-Commit"] = str(file_row.get("commit_sha") or "")[:40]
+    if sandboxed:
+        # The preview lives on the application host. An opaque sandbox origin prevents
+        # synchronized HTML from reading the authenticated panel's storage or APIs.
+        response.headers["Content-Security-Policy"] = PREVIEW_SANDBOX_POLICY
+        response.headers["X-SuperExcel-Preview"] = "sandboxed"
     return response
 
 
-def serve_github_site(slug: str, requested_path: str | None = None) -> Response:
+def serve_github_site(
+    slug: str,
+    requested_path: str | None = None,
+    *,
+    sandboxed: bool = False,
+) -> Response:
     normalized_slug = normalize_site_slug(slug)
     if not normalized_slug:
         return _not_found_response()
@@ -221,7 +232,7 @@ def serve_github_site(slug: str, requested_path: str | None = None) -> Response:
     file_row, file_response = _resolve_site_file(int(connection["id"]), requested_path)
     if file_response is not None and not file_response.ok:
         return _not_found_response()
-    return _site_response(file_row) if file_row else _not_found_response()
+    return _site_response(file_row, sandboxed=sandboxed) if file_row else _not_found_response()
 
 
 def install_github_site_hosting(app: Flask) -> None:
@@ -232,13 +243,13 @@ def install_github_site_hosting(app: Flask) -> None:
             return None
         if request.method not in {"GET", "HEAD"}:
             return Response("Método não permitido.", status=405, content_type="text/plain; charset=utf-8")
-        return serve_github_site(slug, request.path.lstrip("/"))
+        return serve_github_site(slug, request.path.lstrip("/"), sandboxed=False)
 
 
 @github_sites_api.get("/_sites/<slug>/")
 @github_sites_api.get("/_sites/<slug>/<path:site_path>")
 def github_site_preview(slug: str, site_path: str = ""):
-    return serve_github_site(slug, site_path)
+    return serve_github_site(slug, site_path, sandboxed=True)
 
 
 @github_sites_api.get("/api/github/site")
