@@ -45,6 +45,7 @@ from snapshot_routes import snapshot_api
 from superexcel.core.workbook_payload import compact_empty_workbook
 from telemetry_routes import telemetry_api
 from test_time_routes import test_time_api
+from treated_base_formula_routes import treated_base_formula_api
 from treated_base_routes import treated_base_api
 from workbook_routes import workbooks_api
 
@@ -71,6 +72,7 @@ app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
 app.register_blueprint(base_api)
 app.register_blueprint(treated_base_api)
+app.register_blueprint(treated_base_formula_api)
 # A sincronização da Planilha é opcional: a Base 2 permanece editável como qualquer Base relacional.
 app.before_request_funcs[None] = [
     callback
