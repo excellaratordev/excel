@@ -13,6 +13,8 @@ services:
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
+      - key: NODE_VERSION
+        value: "22.22.0"
       - key: SUPABASE_URL
         value: https://kndibdwueoviukqpwmbx.supabase.co
       - key: SUPABASE_SECRET_KEY
