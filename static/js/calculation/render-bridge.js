@@ -52,6 +52,12 @@
         target.classList.toggle('error-cell', value.startsWith('#'));
       }
     }
+
+    if (rendered.size) {
+      window.dispatchEvent(new CustomEvent('superexcel:rendered', {
+        detail: { cells: rendered.size },
+      }));
+    }
   }
 
   function scheduleRender() {
