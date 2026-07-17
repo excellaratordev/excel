@@ -46,10 +46,10 @@ jobs:
         run: >-
           python -m compileall -q
           app.py asset_routes.py backend.py capability_backend.py projects_routes.py files_routes.py
-          workbook_routes.py collaboration_routes.py recovery_routes.py roles_routes.py snapshot_routes.py
-          performance_cache.py telemetry_routes.py github_connector.py github_oauth.py github_sites.py
-          elementar_routes.py elementar_automation_routes.py elementar_automation_values.py
-          elementar_realtime_delivery.py superexcel
+          workbook_routes.py base_routes.py base_elementar_automation.py collaboration_routes.py recovery_routes.py
+          roles_routes.py snapshot_routes.py performance_cache.py telemetry_routes.py github_connector.py
+          github_oauth.py github_sites.py elementar_routes.py elementar_automation_routes.py
+          elementar_automation_values.py elementar_realtime_delivery.py superexcel
 
       - name: Run backend and architecture tests
         run: pytest -q
@@ -60,10 +60,12 @@ jobs:
           node --check static/js/auth-guard.js
           node --check static/js/login.js
           node --check static/js/auth-callback.js
+          node --check static/js/file-pipeline-manager.js
           node --check static/js/manager-ui.js
           node --check static/js/roles-manager.js
           node --check static/js/github-connector.js
           node --check static/js/elementar-manager.js
+          node --check static/js/base-grid.js
           node --check static/js/elementar-sheet.js
           node --check static/js/elementar-source-sync.js
           node --check static/js/elementar-auto-publish-client.js
@@ -121,15 +123,18 @@ jobs:
           test -s supabase/migrations/20260717070000_publish_github_html_subdomains.sql
           test -s supabase/migrations/20260717081500_elementar_automatic_publication.sql
           test -s supabase/migrations/20260717083000_backfill_elementar_dependencies.sql
+          test -s supabase/migrations/20260717102000_create_four_stage_file_pipeline.sql
           grep -q "create table if not exists public.project_roles" supabase/migrations/20260717022658_architecture_completion.sql
           grep -q "enable row level security" supabase/migrations/20260717061000_harden_architecture_tables.sql
           grep -q "github_connections_site_slug_uidx" supabase/migrations/20260717070000_publish_github_html_subdomains.sql
-          grep -q "github_template_files_site_path_idx" supabase/migrations/20260717070000_publish_github_html_subdomains.sql
           grep -q "create table if not exists public.elementar_dependencies" supabase/migrations/20260717081500_elementar_automatic_publication.sql
-          grep -q "create table if not exists public.elementar_source_snapshots" supabase/migrations/20260717081500_elementar_automatic_publication.sql
-          grep -q "last_payload_hash" supabase/migrations/20260717081500_elementar_automatic_publication.sql
           grep -q "jsonb_array_elements" supabase/migrations/20260717083000_backfill_elementar_dependencies.sql
-          grep -q "on conflict (elementar_workbook_id, declaration_key)" supabase/migrations/20260717083000_backfill_elementar_dependencies.sql
+          grep -q "create table if not exists public.base_columns" supabase/migrations/20260717102000_create_four_stage_file_pipeline.sql
+          grep -q "create table if not exists public.base_rows" supabase/migrations/20260717102000_create_four_stage_file_pipeline.sql
+          grep -q "create table if not exists public.file_dependencies" supabase/migrations/20260717102000_create_four_stage_file_pipeline.sql
+          grep -q "workbooks_file_pipeline_check" supabase/migrations/20260717102000_create_four_stage_file_pipeline.sql
+          grep -q "elementar_dependencies_validate_stage" supabase/migrations/20260717102000_create_four_stage_file_pipeline.sql
+          grep -q "referencing new table as new_rows" supabase/migrations/20260717102000_create_four_stage_file_pipeline.sql
 
       - name: Ensure browser assets are same-origin
         run: |
@@ -138,10 +143,13 @@ jobs:
           ! grep -Rni "static/vendor/supabase.js" templates
           grep -Rni "assets_api.supabase_browser_client" templates
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
-          grep -Rni "logical-library.js" templates/index.html
-          grep -Rni "logical-localization-ptbr.js" templates/index.html
           grep -Rni "elementar-source-sync.js" templates/index.html
           grep -Rni "elementar-auto-publish-client.js" templates/index.html
+          grep -Rni "base-grid.js" templates/base.html
+          grep -Rni "pipeline-manager.css" templates/manager.html
+          grep -Rni "file-pipeline-manager.js" static/js/elementar-manager.js
+          ! grep -Rni "formula-runtime.js" templates/base.html
+          ! grep -Rni "runtime-bridge.js" templates/base.html
 
       - name: Publish benchmark evidence
         uses: actions/upload-artifact@v4
