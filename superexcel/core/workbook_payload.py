@@ -6,11 +6,14 @@ from typing import Any
 
 DEFAULT_ROWS = 60
 DEFAULT_COLS = 26
+MAX_ROWS = 1_000_000
+MAX_COLS = 10_000
 
 
 def compact_empty_workbook(name: str) -> dict[str, Any]:
     return {
-        "version": 1,
+        "version": 2,
+        "storage": "sparse",
         "name": str(name or "Minha Planilha"),
         "rows": DEFAULT_ROWS,
         "cols": DEFAULT_COLS,
@@ -18,19 +21,28 @@ def compact_empty_workbook(name: str) -> dict[str, Any]:
     }
 
 
-def _positive_int(value: Any, fallback: int) -> int:
+def _positive_int(value: Any, fallback: int, maximum: int | None = None) -> int:
     try:
         parsed = int(value)
     except (TypeError, ValueError):
         return fallback
-    return parsed if parsed > 0 else fallback
+    if parsed <= 0:
+        return fallback
+    return min(parsed, maximum) if maximum else parsed
+
+
+def is_sparse_payload(payload: Any) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    cells = payload.get("cells")
+    return payload.get("storage") == "sparse" or (
+        isinstance(cells, list) and bool(cells) and isinstance(cells[0], dict)
+    )
 
 
 def iter_non_empty_cells(payload: dict[str, Any]) -> Iterator[tuple[int, int, Any]]:
     cells = payload.get("cells")
-    if payload.get("storage") == "sparse" or (
-        isinstance(cells, list) and cells and isinstance(cells[0], dict)
-    ):
+    if is_sparse_payload(payload):
         for item in cells if isinstance(cells, list) else []:
             if not isinstance(item, dict):
                 continue
@@ -40,31 +52,47 @@ def iter_non_empty_cells(payload: dict[str, Any]) -> Iterator[tuple[int, int, An
             except (TypeError, ValueError):
                 continue
             value = item.get("v")
-            if row >= 0 and col >= 0 and value not in (None, ""):
+            if 0 <= row < MAX_ROWS and 0 <= col < MAX_COLS and value not in (None, ""):
                 yield row, col, value
         return
 
     if not isinstance(cells, list):
         return
-    for row_index, row in enumerate(cells):
+    for row_index, row in enumerate(cells[:MAX_ROWS]):
         if not isinstance(row, list):
             continue
-        for col_index, value in enumerate(row):
+        for col_index, value in enumerate(row[:MAX_COLS]):
             if value not in (None, ""):
                 yield row_index, col_index, value
+
+
+def to_sparse_payload(payload: Any, *, name: str | None = None) -> dict[str, Any]:
+    source = payload if isinstance(payload, dict) else {}
+    rows = _positive_int(source.get("rows"), DEFAULT_ROWS, MAX_ROWS)
+    cols = _positive_int(source.get("cols"), DEFAULT_COLS, MAX_COLS)
+    cells = []
+    for row, col, value in iter_non_empty_cells(source):
+        cells.append({"r": row, "c": col, "v": value})
+        rows = max(rows, row + 1)
+        cols = max(cols, col + 1)
+    cells.sort(key=lambda item: (item["r"], item["c"]))
+    return {
+        "version": 2,
+        "storage": "sparse",
+        "name": str(name or source.get("name") or "Minha Planilha"),
+        "rows": rows,
+        "cols": cols,
+        "cells": cells,
+    }
 
 
 def inspect_workbook_payload(payload: Any) -> dict[str, int | str]:
     if not isinstance(payload, dict):
         payload = {}
 
-    rows = _positive_int(payload.get("rows"), DEFAULT_ROWS)
-    cols = _positive_int(payload.get("cols"), DEFAULT_COLS)
-    storage = "sparse" if payload.get("storage") == "sparse" else "dense"
-    cells = payload.get("cells")
-    if isinstance(cells, list) and cells and isinstance(cells[0], dict):
-        storage = "sparse"
-
+    rows = _positive_int(payload.get("rows"), DEFAULT_ROWS, MAX_ROWS)
+    cols = _positive_int(payload.get("cols"), DEFAULT_COLS, MAX_COLS)
+    storage = "sparse" if is_sparse_payload(payload) else "dense"
     filled_cells = 0
     formula_cells = 0
     value_bytes = 0
