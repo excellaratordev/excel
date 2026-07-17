@@ -117,6 +117,17 @@ begin
     );
   end if;
 
+  if row_data.values -> p_column_key is not distinct from coalesce(p_value, 'null'::jsonb) then
+    return jsonb_build_object(
+      'status', 'unchanged',
+      'row_id', p_row_id,
+      'column_key', p_column_key,
+      'formula', p_formula,
+      'value', p_value,
+      'updated_at', row_data.updated_at
+    );
+  end if;
+
   update public.base_rows
      set values = jsonb_set(
            coalesce(values, '{}'::jsonb),
@@ -139,5 +150,10 @@ begin
   );
 end;
 $$;
+
+revoke all on function public.set_treated_base_formula_result(bigint, bigint, text, text, jsonb, text)
+  from public, anon, authenticated;
+grant execute on function public.set_treated_base_formula_result(bigint, bigint, text, text, jsonb, text)
+  to service_role;
 
 commit;
