@@ -42,6 +42,7 @@ from roles_routes import roles_api
 from snapshot_routes import snapshot_api
 from superexcel.core.workbook_payload import compact_empty_workbook
 from telemetry_routes import telemetry_api
+from treated_base_routes import treated_base_api
 from workbook_routes import workbooks_api
 
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
@@ -65,6 +66,7 @@ app.register_blueprint(projects_api)
 app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
 app.register_blueprint(base_api)
+app.register_blueprint(treated_base_api)
 app.register_blueprint(base_reference_api)
 app.register_blueprint(collaboration_api)
 app.register_blueprint(recovery_api)
