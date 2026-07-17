@@ -52,7 +52,7 @@
   <dialog id="functions-dialog" class="dialog functions-dialog"><div class="dialog-header"><div><h2>30 fórmulas disponíveis</h2><p>Use ponto e vírgula <code>;</code> entre argumentos.</p></div><button class="icon-button" data-close-dialog="functions-dialog" aria-label="Fechar">×</button></div><div id="functions-list" class="functions-list"></div></dialog>
   <dialog id="open-dialog" class="dialog open-dialog"><div class="dialog-header"><div><h2>Abrir planilha</h2><p>Arquivos disponíveis nos seus projetos.</p></div><button class="icon-button" data-close-dialog="open-dialog" aria-label="Fechar">×</button></div><div id="workbooks-list" class="workbooks-list"></div></dialog>
   <p data-auth-error class="error-text" hidden></p>
-  <script src="{{ url_for('static', filename='vendor/supabase.js') }}"></script>
+  <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/formula-parser.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/dependency-graph.js') }}"></script>
