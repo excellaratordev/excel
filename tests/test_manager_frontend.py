@@ -70,3 +70,15 @@ def test_manager_ui_extension_loads_after_manager_core() -> None:
     github_position = template.index("js/github-connector.js")
 
     assert core_position < ui_position < github_position
+
+
+def test_manager_topbar_uses_independent_groups_and_override_styles() -> None:
+    template = manager_template()
+
+    assert "css/manager-topbar.css" in template
+    assert '<div class="project-switcher">' in template
+    assert '<div class="actions" aria-label="Ações de arquivos">' in template
+    assert '<div class="topbar-account">' in template
+    assert template.index('class="brand-block"') < template.index('class="project-switcher"')
+    assert template.index('class="project-switcher"') < template.index('class="actions" aria-label="Ações de arquivos"')
+    assert template.index('class="actions" aria-label="Ações de arquivos"') < template.index('class="topbar-account"')
