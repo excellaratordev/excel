@@ -17,6 +17,13 @@ A importação inicial varre o repositório inteiro. Depois disso, webhooks de `
 
 A integração usa um **GitHub App**, não um token pessoal do cliente.
 
+O fluxo de instalação possui duas validações:
+
+1. o estado iniciado pelo Super Excel é assinado e expira;
+2. depois da instalação, o usuário autoriza o GitHub App por OAuth e o backend confirma que aquela conta realmente possui acesso à instalação e ao repositório selecionados.
+
+O `installation_id` recebido na Setup URL nunca é aceito sozinho.
+
 O banco armazena somente:
 
 - ID da instalação;
@@ -25,7 +32,7 @@ O banco armazena somente:
 - estado da sincronização;
 - conteúdo e metadados dos HTMLs importados.
 
-Tokens de instalação são temporários, gerados pelo backend e mantidos apenas em memória até perto da expiração.
+O token OAuth do usuário não é persistido. Tokens de instalação são temporários, gerados pelo backend e mantidos apenas em memória até perto da expiração.
 
 As rotas de configuração exigem:
 
@@ -39,14 +46,15 @@ O webhook valida `X-Hub-Signature-256` antes de ler o evento.
 
 Crie um GitHub App com:
 
-- **Setup URL:** `https://SEU-DOMINIO/github/callback`;
+- **Setup URL:** `https://SEU-DOMINIO/github/setup`;
+- **Callback URL:** `https://SEU-DOMINIO/github/callback`;
 - **Webhook URL:** `https://SEU-DOMINIO/webhooks/github`;
 - **Webhook secret:** um valor aleatório forte;
 - **Repository permissions / Contents:** `Read-only`;
 - **Repository permissions / Metadata:** `Read-only`;
 - **Subscribe to events:** `Push`.
 
-Variáveis de ambiente:
+Variáveis de ambiente obrigatórias:
 
 ```text
 GITHUB_APP_ID=
@@ -54,9 +62,17 @@ GITHUB_APP_SLUG=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_APP_WEBHOOK_SECRET=
 GITHUB_STATE_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
 ```
 
 A chave privada pode ser configurada com quebras de linha reais ou com `\n`.
+
+Em produção, configure explicitamente a mesma Callback URL cadastrada no GitHub App:
+
+```text
+GITHUB_OAUTH_CALLBACK_URL=https://SEU-DOMINIO/github/callback
+```
 
 Variáveis opcionais:
 
@@ -89,12 +105,23 @@ As três tabelas usam RLS. O backend opera por chave de serviço e continua apli
 
 ```text
 POST   /api/github/connect
+GET    /github/setup
 GET    /github/callback
 GET    /api/github/connection?project_id=...
 POST   /api/github/sync
 DELETE /api/github/connection
 POST   /webhooks/github
 ```
+
+## Fluxo de conexão
+
+1. O administrador informa o repositório e a branch no Super Excel.
+2. O backend gera um estado assinado e abre a instalação do GitHub App.
+3. O GitHub redireciona para `/github/setup` com o ID da instalação.
+4. O backend gera um segundo estado assinado e inicia o OAuth do usuário.
+5. O callback troca o código por um token temporário do usuário.
+6. O backend consulta os repositórios daquela instalação usando o token do usuário.
+7. Somente depois dessa confirmação é gerado o token temporário da instalação e iniciada a importação.
 
 ## Comportamento de sincronização
 
