@@ -2,7 +2,7 @@
 <html lang="pt-BR" data-workbook-id="{{ preload_workbook_id or '' }}">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="description" content="Super Excel: planilha web colaborativa com motor de cálculo incremental próprio.">
   <title>Super Excel</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/base-reference-panel.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/formula-glossary.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/test-time.css') }}">
 </head>
 <body class="auth-pending sheet-loading">
   <div id="snapshot-layer" class="snapshot-layer" hidden aria-label="Pré-visualização instantânea da planilha"></div>
@@ -173,5 +174,6 @@
   <script src="{{ url_for('static', filename='js/elementar-auto-publish-client.js') }}"></script>
   <script src="{{ url_for('static', filename='js/elementar-sheet.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance-telemetry.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/test-time.js') }}"></script>
 </body>
 </html>
