@@ -47,7 +47,8 @@ jobs:
           python -m compileall -q
           app.py asset_routes.py backend.py capability_backend.py projects_routes.py files_routes.py
           workbook_routes.py collaboration_routes.py recovery_routes.py roles_routes.py snapshot_routes.py
-          performance_cache.py telemetry_routes.py github_connector.py github_oauth.py elementar_routes.py superexcel
+          performance_cache.py telemetry_routes.py github_connector.py github_oauth.py github_sites.py
+          elementar_routes.py superexcel
 
       - name: Run backend and architecture tests
         run: pytest -q
@@ -114,8 +115,11 @@ jobs:
         run: |
           test -s supabase/migrations/20260717022658_architecture_completion.sql
           test -s supabase/migrations/20260717061000_harden_architecture_tables.sql
+          test -s supabase/migrations/20260717070000_publish_github_html_subdomains.sql
           grep -q "create table if not exists public.project_roles" supabase/migrations/20260717022658_architecture_completion.sql
           grep -q "enable row level security" supabase/migrations/20260717061000_harden_architecture_tables.sql
+          grep -q "github_connections_site_slug_uidx" supabase/migrations/20260717070000_publish_github_html_subdomains.sql
+          grep -q "github_template_files_site_path_idx" supabase/migrations/20260717070000_publish_github_html_subdomains.sql
 
       - name: Ensure browser assets are same-origin
         run: |
