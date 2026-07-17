@@ -16,6 +16,7 @@ Planilha web construída com **HTML, CSS, JavaScript, Flask e um motor de cálcu
 - Autosave no navegador.
 - Persistência no servidor usando Supabase.
 - Importação e exportação em JSON.
+- Planilhas Elementar para publicar regras e intervalos calculados como APIs JSON versionadas.
 - Conector GitHub para espelhar automaticamente `templates/**/*.html` após push ou merge.
 - Execução local, Gunicorn, Render e Docker.
 
@@ -85,6 +86,20 @@ GITHUB_OAUTH_CALLBACK_URL=https://SEU-DOMINIO/github/callback
 No GitHub App, use `/github/setup` como Setup URL, `/github/callback` como Callback URL e `/webhooks/github` como Webhook URL.
 
 Aplique a migration `supabase/migrations/20260717033000_create_github_template_connector.sql` e consulte `docs/GITHUB_TEMPLATE_CONNECTOR.md`.
+
+## Planilhas Elementar
+
+Uma Elementar transforma intervalos de outras planilhas em um JSON publicado para o frontend:
+
+```text
+pedidos='Planilha de Pedidos'!A1:D100
+empresa='Configurações'!B2
+dashboard.indicadores='Indicadores'!B2:F2
+```
+
+Uma célula gera um valor, uma linha ou coluna gera uma lista e uma tabela com cabeçalhos gera uma lista de objetos. A prévia é calculada no navegador pelo mesmo runtime da planilha; a publicação cria uma versão imutável acessível por endpoint privado ou público.
+
+Aplique a migration `supabase/migrations/20260717050000_create_elementar_workbooks.sql` e consulte `docs/ELEMENTAR_WORKBOOKS.md`.
 
 ## Fórmulas
 
