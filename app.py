@@ -19,6 +19,8 @@ from collaboration_routes import collaboration_api
 from files_routes import files_api
 from performance_cache import install as install_performance_cache
 from projects_routes import projects_api
+from recovery_routes import recovery_api
+from roles_routes import roles_api
 from superexcel.core.workbook_payload import compact_empty_workbook
 from telemetry_routes import telemetry_api
 from workbook_routes import workbooks_api
@@ -36,6 +38,8 @@ app.register_blueprint(projects_api)
 app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
 app.register_blueprint(collaboration_api)
+app.register_blueprint(recovery_api)
+app.register_blueprint(roles_api)
 app.register_blueprint(telemetry_api)
 
 
