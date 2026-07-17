@@ -18,7 +18,10 @@ def test_base_editor_is_relational_and_virtualized() -> None:
     assert "visibleBounds" in script
     assert "ensureRange" in script
     assert "/api/bases/${workbookId}" in script
-    assert "formulaLike" in script
+    assert "formulaLike" not in script
+    assert "Bases não aceitam fórmulas" not in script
+    assert "input.type = 'text'" in script
+    assert "value.trimStart().startsWith('=')" in script
 
 
 def test_manager_exposes_exactly_four_pipeline_stages() -> None:
