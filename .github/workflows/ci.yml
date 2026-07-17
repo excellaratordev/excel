@@ -69,6 +69,7 @@ jobs:
           node --check static/js/calculation/function-library.js
           node --check static/js/calculation/formula-catalog.js
           node --check static/js/calculation/formula-runtime.js
+          node --check static/js/calculation/logical-library.js
           node --check static/js/calculation/enterprise-kernel.js
           node --check static/js/calculation/runtime-bridge.js
           node --check static/js/calculation/render-bridge.js
@@ -87,6 +88,7 @@ jobs:
           node --check static/js/performance-telemetry.js
           node --check static/js/wasm/engine-contract.js
           node --check benchmarks/calculation-benchmarks.js
+          node --check benchmarks/logical-benchmarks.js
           node --check benchmarks/collaboration-simulator.js
 
       - name: Run JavaScript tests
@@ -94,6 +96,9 @@ jobs:
 
       - name: Execute C1-C5 calculation benchmarks
         run: node benchmarks/calculation-benchmarks.js --profile ci --output artifacts/calculation-benchmarks.json
+
+      - name: Execute L1-L5 logical benchmarks
+        run: node benchmarks/logical-benchmarks.js --profile ci --output artifacts/logical-benchmarks.json
 
       - name: Execute R1-R5 collaboration simulation
         run: node benchmarks/collaboration-simulator.js --output artifacts/collaboration-simulation.json
@@ -118,6 +123,7 @@ jobs:
           ! grep -Rni "static/vendor/supabase.js" templates
           grep -Rni "assets_api.supabase_browser_client" templates
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
+          grep -Rni "logical-library.js" templates/index.html
 
       - name: Publish benchmark evidence
         uses: actions/upload-artifact@v4
