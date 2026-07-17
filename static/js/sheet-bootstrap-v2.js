@@ -6,8 +6,6 @@
   const legacyCollaboration = new URLSearchParams(window.location.search).get('collab') === 'v2';
   const DEFAULT_ROWS = 60;
   const DEFAULT_COLS = 26;
-  const SOFT_ROWS = 250;
-  const SOFT_COLS = 40;
   const MAX_ROWS = 5000;
   const MAX_COLS = 300;
 
@@ -16,44 +14,34 @@
     return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
   }
 
-  function columnIndex(name) {
-    let result = 0;
-    for (const letter of String(name).toUpperCase()) result = result * 26 + letter.charCodeAt(0) - 64;
-    return Math.max(0, result - 1);
-  }
-
   function dimensionsFromPayload(payload) {
     const cells = Array.isArray(payload?.cells) ? payload.cells : [];
-    const declaredRows = positiveInteger(payload?.rows, cells.length || DEFAULT_ROWS);
-    const declaredCols = positiveInteger(
-      payload?.cols,
-      cells.reduce((largest, row) => Math.max(largest, Array.isArray(row) ? row.length : 0), DEFAULT_COLS),
-    );
-    let lastUsedRow = -1;
-    let lastUsedCol = -1;
-    let lastReferencedRow = -1;
-    let lastReferencedCol = -1;
-    const referencePattern = /\$?([A-Z]{1,3})\$?(\d+)/giu;
+    let lastRow = -1;
+    let lastCol = -1;
+    const sparse = payload?.storage === 'sparse' || (cells.length > 0 && !Array.isArray(cells[0]));
 
-    cells.forEach((row, rowIndex) => {
-      if (!Array.isArray(row)) return;
-      row.forEach((value, colIndex) => {
-        if (value === null || value === undefined || value === '') return;
-        lastUsedRow = Math.max(lastUsedRow, rowIndex);
-        lastUsedCol = Math.max(lastUsedCol, colIndex);
-        if (typeof value !== 'string' || !value.trimStart().startsWith('=')) return;
-        referencePattern.lastIndex = 0;
-        let match;
-        while ((match = referencePattern.exec(value)) !== null) {
-          lastReferencedCol = Math.max(lastReferencedCol, columnIndex(match[1]));
-          lastReferencedRow = Math.max(lastReferencedRow, Number(match[2]) - 1);
-        }
+    if (sparse) {
+      for (const item of cells) {
+        const row = Number(item?.r);
+        const col = Number(item?.c);
+        if (!Number.isInteger(row) || !Number.isInteger(col)) continue;
+        lastRow = Math.max(lastRow, row);
+        lastCol = Math.max(lastCol, col);
+      }
+    } else {
+      cells.forEach((rowValues, row) => {
+        if (!Array.isArray(rowValues)) return;
+        rowValues.forEach((value, col) => {
+          if (value === null || value === undefined || value === '') return;
+          lastRow = Math.max(lastRow, row);
+          lastCol = Math.max(lastCol, col);
+        });
       });
-    });
+    }
 
     return {
-      rows: Math.min(MAX_ROWS, Math.max(DEFAULT_ROWS, Math.min(declaredRows, SOFT_ROWS), lastUsedRow + 31, lastReferencedRow + 1)),
-      cols: Math.min(MAX_COLS, Math.max(DEFAULT_COLS, Math.min(declaredCols, SOFT_COLS), lastUsedCol + 8, lastReferencedCol + 1)),
+      rows: Math.min(MAX_ROWS, Math.max(DEFAULT_ROWS, positiveInteger(payload?.rows, DEFAULT_ROWS), lastRow + 1)),
+      cols: Math.min(MAX_COLS, Math.max(DEFAULT_COLS, positiveInteger(payload?.cols, DEFAULT_COLS), lastCol + 1)),
     };
   }
 
@@ -83,6 +71,11 @@
     return output;
   }
 
+  function hydrated(revision) {
+    document.body.classList.remove('sheet-loading');
+    window.dispatchEvent(new CustomEvent('superexcel:hydrated', { detail: { revision } }));
+  }
+
   async function initialize() {
     await window.SuperExcelAuth.ready;
 
@@ -100,57 +93,72 @@
       }
     }
 
+    const dimensions = renderSnapshot
+      ? dimensionsFromRenderSnapshot(renderSnapshot)
+      : { rows: DEFAULT_ROWS, cols: DEFAULT_COLS };
+
     window.SuperExcelInitialWorkbook = {
-      version: 1,
+      version: 2,
+      storage: 'sparse',
       name: renderSnapshot?.name || 'Minha Planilha',
-      rows: renderSnapshot?.rows || DEFAULT_ROWS,
-      cols: renderSnapshot?.cols || DEFAULT_COLS,
+      rows: dimensions.rows,
+      cols: dimensions.cols,
       cells: [],
     };
-    window.SuperExcelInitialMeta = { revision: 0, project_id: null, role: 'viewer', realtime_topic: null };
-    window.SuperExcelGridSize = Object.freeze(
-      renderSnapshot ? dimensionsFromRenderSnapshot(renderSnapshot) : { rows: DEFAULT_ROWS, cols: DEFAULT_COLS },
-    );
+    window.SuperExcelInitialMeta = {
+      revision: 0,
+      project_id: null,
+      role: workbookId ? 'viewer' : 'editor',
+      capabilities: workbookId ? [] : ['cell.edit'],
+      realtime_topic: null,
+    };
+    window.SuperExcelGridSize = Object.freeze(dimensions);
 
+    await loadScript('/static/js/grid/sparse-store.js');
+    await loadScript('/static/js/grid/viewport.js');
     if (!legacyCollaboration) {
       await loadScript('/static/js/collab-operation.js');
       await loadScript('/static/js/collab-operation-store.js');
     }
-    await loadScript('/static/js/app-v2.js');
+    await loadScript('/static/js/app-v3.js');
 
     if (!workbookId) {
-      document.body.classList.remove('sheet-loading');
-      window.dispatchEvent(new CustomEvent('superexcel:hydrated', { detail: { revision: 0 } }));
+      await loadScript('/static/js/sheet-capabilities.js');
+      hydrated(0);
       return;
     }
 
-    const [output, collaboration] = await Promise.all([
+    const [output, collaboration, access] = await Promise.all([
       fetchJson(`/api/workbooks/${workbookId}`),
       fetchJson(`/api/workbooks/${workbookId}/collaboration-config`),
+      fetchJson(`/api/workbooks/${workbookId}/capabilities`),
     ]);
-    const workbook = output.data || { version: 1, cells: [] };
+
+    const workbook = output.data || {
+      version: 2,
+      storage: 'sparse',
+      name: output.name || 'Minha Planilha',
+      rows: DEFAULT_ROWS,
+      cols: DEFAULT_COLS,
+      cells: [],
+    };
     workbook.name = output.name || workbook.name || 'Minha Planilha';
+
     window.SuperExcelInitialWorkbook = workbook;
     window.SuperExcelInitialMeta = {
       revision: Number(output.revision || collaboration.revision || 1),
       project_id: output.project_id || collaboration.project_id,
-      role: output.role || collaboration.role || 'viewer',
+      role: output.role || collaboration.role || access.role || 'viewer',
+      capabilities: access.capabilities || output.capabilities || collaboration.capabilities || [],
       updated_at: output.updated_at,
       updated_by_email: output.updated_by_email,
       realtime_topic: collaboration.realtime_topic,
     };
-
-    const actualDimensions = dimensionsFromPayload(workbook);
-    const currentDimensions = window.SuperExcelGridSize || {};
-    if (actualDimensions.rows > Number(currentDimensions.rows || 0) || actualDimensions.cols > Number(currentDimensions.cols || 0)) {
-      console.warn('A planilha excede a grade criada pelo snapshot; a grade virtualizada eliminará esta limitação.');
-    }
+    window.SuperExcelGridSize = Object.freeze(dimensionsFromPayload(workbook));
 
     window.SuperExcelApp.replaceSnapshot(workbook);
-    document.body.classList.remove('sheet-loading');
-    window.dispatchEvent(new CustomEvent('superexcel:hydrated', {
-      detail: { revision: window.SuperExcelInitialMeta.revision },
-    }));
+    await loadScript('/static/js/sheet-capabilities.js');
+    hydrated(window.SuperExcelInitialMeta.revision);
 
     await loadScript(legacyCollaboration
       ? '/static/js/sheet-collaboration-v2.js'

@@ -36,9 +36,9 @@ jobs:
       - name: Validate Python syntax
         run: >-
           python -m compileall -q
-          app.py asset_routes.py backend.py projects_routes.py files_routes.py workbook_routes.py
-          collaboration_routes.py snapshot_routes.py performance_cache.py telemetry_routes.py
-          github_connector.py github_oauth.py superexcel
+          app.py asset_routes.py backend.py capability_backend.py projects_routes.py files_routes.py
+          workbook_routes.py collaboration_routes.py recovery_routes.py roles_routes.py snapshot_routes.py
+          performance_cache.py telemetry_routes.py github_connector.py github_oauth.py superexcel
 
       - name: Run backend tests
         run: pytest -q
@@ -60,8 +60,12 @@ jobs:
           node --check static/js/collab-operation-store.js
           node --check static/js/snapshot-boot.js
           node --check static/js/snapshot-manager.js
+          node --check static/js/grid/sparse-store.js
+          node --check static/js/grid/viewport.js
+          node --check static/js/sheet-capabilities.js
           node --check static/js/sheet-bootstrap-v2.js
           node --check static/js/app-v2.js
+          node --check static/js/app-v3.js
           node --check static/js/sheet-collaboration-v3.js
           node --check static/js/performance-telemetry.js
 

@@ -68,6 +68,7 @@
 
   function install(runtime) {
     activeRuntime = runtime;
+    window.SuperExcelActiveRuntime = runtime;
     for (const methodName of ['setCellContents', 'resumeEvaluation', 'undo', 'redo']) {
       const original = runtime[methodName]?.bind(runtime);
       if (!original) continue;

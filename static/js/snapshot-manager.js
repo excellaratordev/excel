@@ -4,9 +4,54 @@
   const workbookId = Number(document.documentElement.dataset.workbookId || 0);
   if (!workbookId) return;
 
+  const numberFormatter = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 10 });
+  const dateFormatter = new Intl.DateTimeFormat('pt-BR', { timeZone: 'UTC' });
   let hydrated = false;
   let timer = null;
   let saving = false;
+
+  function displayValue(row, col, fallback) {
+    const runtime = window.SuperExcelActiveRuntime;
+    if (!runtime?.getCellValue) return fallback == null ? '' : String(fallback);
+    try {
+      const coordinate = { sheet: 0, row, col };
+      const value = runtime.getCellValue(coordinate);
+      if (value == null) return '';
+      if (typeof value === 'object' && value.value !== undefined) return String(value.value);
+      if (typeof value === 'boolean') return value ? 'VERDADEIRO' : 'FALSO';
+      if (typeof value === 'number') {
+        const type = String(runtime.getCellValueDetailedType?.(coordinate) || '');
+        if (type.includes('DATE')) {
+          const date = new Date(Date.UTC(1899, 11, 30));
+          date.setUTCDate(date.getUTCDate() + Math.floor(value));
+          return dateFormatter.format(date);
+        }
+        return numberFormatter.format(value);
+      }
+      return String(value);
+    } catch {
+      return fallback == null ? '' : String(fallback);
+    }
+  }
+
+  function sourceEntries(payload) {
+    const output = [];
+    const values = Array.isArray(payload?.cells) ? payload.cells : [];
+    const sparse = payload?.storage === 'sparse' || (values.length > 0 && !Array.isArray(values[0]));
+    if (sparse) {
+      for (const item of values) {
+        const row = Number(item?.r);
+        const col = Number(item?.c);
+        if (Number.isInteger(row) && Number.isInteger(col)) output.push({ row, col, value: item?.v });
+      }
+      return output;
+    }
+    values.forEach((rowValues, row) => {
+      if (!Array.isArray(rowValues)) return;
+      rowValues.forEach((value, col) => output.push({ row, col, value }));
+    });
+    return output;
+  }
 
   function capture() {
     const app = window.SuperExcelApp;
@@ -15,15 +60,25 @@
     const logicalCols = Math.max(1, Number(app.cols) || 26);
     const visibleRows = Math.min(120, logicalRows);
     const visibleCols = Math.min(50, logicalCols);
-    const cells = [];
+    const captured = new Map();
+
     document.querySelectorAll('#spreadsheet .cell').forEach(element => {
       const row = Number(element.dataset.row);
       const col = Number(element.dataset.col);
       if (row >= visibleRows || col >= visibleCols) return;
       const display = element.textContent || '';
-      if (!display) return;
-      cells.push({ r: row, c: col, d: display });
+      if (display) captured.set(`${row}:${col}`, { r: row, c: col, d: display });
     });
+
+    const payload = app.getSnapshot?.();
+    for (const item of sourceEntries(payload)) {
+      if (item.row < 0 || item.col < 0 || item.row >= visibleRows || item.col >= visibleCols) continue;
+      const key = `${item.row}:${item.col}`;
+      if (captured.has(key)) continue;
+      const display = displayValue(item.row, item.col, item.value);
+      if (display) captured.set(key, { r: item.row, c: item.col, d: display });
+    }
+
     return {
       version: 1,
       name: document.querySelector('#workbook-name')?.value || 'Planilha',
@@ -31,7 +86,7 @@
       cols: logicalCols,
       visible_rows: visibleRows,
       visible_cols: visibleCols,
-      cells,
+      cells: [...captured.values()].sort((left, right) => left.r - right.r || left.c - right.c),
       generated_at: new Date().toISOString(),
     };
   }
@@ -79,11 +134,8 @@
   function schedule(delay = 500) {
     clearTimeout(timer);
     timer = window.setTimeout(() => {
-      if ('requestIdleCallback' in window) {
-        window.requestIdleCallback(persist, { timeout: 1200 });
-      } else {
-        persist();
-      }
+      if ('requestIdleCallback' in window) window.requestIdleCallback(persist, { timeout: 1200 });
+      else persist();
     }, delay);
   }
 

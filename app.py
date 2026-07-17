@@ -3,6 +3,13 @@ from __future__ import annotations
 import os
 
 import backend
+from capability_backend import install as install_capabilities
+from performance_cache import install as install_performance_cache
+
+# Route modules import backend helpers by value, so wrappers must be installed first.
+install_performance_cache(backend)
+install_capabilities(backend)
+
 import workbook_routes
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
@@ -20,8 +27,9 @@ from collaboration_routes import collaboration_api
 from files_routes import files_api
 from github_connector import github_api
 from github_oauth import github_oauth_api, install_secure_connector, secure_github_callback
-from performance_cache import install as install_performance_cache
 from projects_routes import projects_api
+from recovery_routes import recovery_api
+from roles_routes import roles_api
 from snapshot_routes import snapshot_api
 from superexcel.core.workbook_payload import compact_empty_workbook
 from telemetry_routes import telemetry_api
@@ -29,7 +37,6 @@ from workbook_routes import workbooks_api
 
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
 
-install_performance_cache(backend)
 workbook_routes.empty_workbook = compact_empty_workbook
 install_secure_connector()
 
@@ -42,6 +49,8 @@ app.register_blueprint(projects_api)
 app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
 app.register_blueprint(collaboration_api)
+app.register_blueprint(recovery_api)
+app.register_blueprint(roles_api)
 app.register_blueprint(snapshot_api)
 app.register_blueprint(telemetry_api)
 app.register_blueprint(github_oauth_api)
