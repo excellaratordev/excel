@@ -142,6 +142,70 @@ create trigger base_rows_validate_workbook
 before insert or update of workbook_id on public.base_rows
 for each row execute function public.validate_base_storage_workbook();
 
+create or replace function public.touch_base_workbooks_from_new_rows()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  update public.workbooks as workbook
+     set revision = workbook.revision + 1,
+         updated_at = now()
+   where workbook.id in (select distinct workbook_id from new_rows);
+  return null;
+end;
+$$;
+
+create or replace function public.touch_base_workbooks_from_old_rows()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  update public.workbooks as workbook
+     set revision = workbook.revision + 1,
+         updated_at = now()
+   where workbook.id in (select distinct workbook_id from old_rows);
+  return null;
+end;
+$$;
+
+drop trigger if exists base_rows_touch_after_insert on public.base_rows;
+create trigger base_rows_touch_after_insert
+after insert on public.base_rows
+referencing new table as new_rows
+for each statement execute function public.touch_base_workbooks_from_new_rows();
+
+drop trigger if exists base_rows_touch_after_update on public.base_rows;
+create trigger base_rows_touch_after_update
+after update on public.base_rows
+referencing new table as new_rows
+for each statement execute function public.touch_base_workbooks_from_new_rows();
+
+drop trigger if exists base_rows_touch_after_delete on public.base_rows;
+create trigger base_rows_touch_after_delete
+after delete on public.base_rows
+referencing old table as old_rows
+for each statement execute function public.touch_base_workbooks_from_old_rows();
+
+drop trigger if exists base_columns_touch_after_insert on public.base_columns;
+create trigger base_columns_touch_after_insert
+after insert on public.base_columns
+referencing new table as new_rows
+for each statement execute function public.touch_base_workbooks_from_new_rows();
+
+drop trigger if exists base_columns_touch_after_update on public.base_columns;
+create trigger base_columns_touch_after_update
+after update on public.base_columns
+referencing new table as new_rows
+for each statement execute function public.touch_base_workbooks_from_new_rows();
+
+drop trigger if exists base_columns_touch_after_delete on public.base_columns;
+create trigger base_columns_touch_after_delete
+after delete on public.base_columns
+referencing old table as old_rows
+for each statement execute function public.touch_base_workbooks_from_old_rows();
+
 alter table public.base_columns enable row level security;
 alter table public.base_rows enable row level security;
 alter table public.file_dependencies enable row level security;
