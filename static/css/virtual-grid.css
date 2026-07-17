@@ -31,6 +31,8 @@
 .virtual-grid-col-header,
 .virtual-grid-corner {
   position: absolute;
+  top: 0;
+  left: 0;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   background: #fff;
@@ -94,6 +96,20 @@
   background: #dcefe4;
 }
 
+/*
+ * The legacy .cell.selected/.cell.editing rules set position: relative.
+ * Virtual cells must stay absolutely positioned or the selected cell enters
+ * normal document flow and visually expands/splits its row.
+ */
+.virtual-grid-cell.selected,
+.virtual-grid-cell.selection-anchor,
+.virtual-grid-cell.range-handle,
+.virtual-grid-cell.editing {
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
 .virtual-grid-cell.selected,
 .virtual-grid-cell.selection-anchor {
   z-index: 3;
@@ -118,7 +134,7 @@
 
 .virtual-grid-cell.formula-cell { color: #0b5f31; }
 .virtual-grid-cell.error-cell { color: var(--danger); }
-.virtual-grid-cell.editing { color: transparent; }
+.virtual-grid-cell.editing { color: transparent; overflow: hidden; white-space: nowrap; }
 .virtual-grid-cell.range-top { border-top: 2px solid var(--green); }
 .virtual-grid-cell.range-bottom { border-bottom: 2px solid var(--green); }
 .virtual-grid-cell.range-left { border-left: 2px solid var(--green); }
@@ -132,6 +148,8 @@
 .virtual-grid-editor,
 .virtual-grid-editor.cell {
   position: absolute;
+  top: 0;
+  left: 0;
   z-index: 10;
   width: var(--cell-width);
   min-width: var(--cell-width);
