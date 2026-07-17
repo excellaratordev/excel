@@ -94,6 +94,7 @@
     if (message.type !== 'superexcel:value-subscribe') return;
     if (Number(message.workbookId) !== workbookId) return;
     const subscriptionId = String(message.subscriptionId || 'default');
+    subscriptions.clear();
     subscriptions.set(subscriptionId, normalizeCells(message.cells));
     if (!hydrated) announceReady();
     schedulePublish(0);
