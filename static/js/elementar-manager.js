@@ -1,6 +1,11 @@
 (() => {
   'use strict';
 
+  if (!window.__superExcelPipelineManagerBootstrapped) {
+    window.__superExcelPipelineManagerBootstrapped = true;
+    document.write('<script src="/static/js/file-pipeline-manager.js"><\/script>');
+  }
+
   const nativeFetch = window.fetch.bind(window);
   const context = { projectId: null, folderId: null, workbooks: [], elementarIds: new Set() };
 
@@ -16,22 +21,15 @@
   }
 
   function decorateWorkbooks() {
-    const cards = [...document.querySelectorAll('#items .workbook-item')];
-    cards.forEach((card, index) => {
-      const workbook = context.workbooks[index];
-      if (!workbook) return;
-      card.dataset.workbookId = String(workbook.id);
+    document.querySelectorAll('#items .workbook-item').forEach(card => {
+      const workbookId = Number(card.dataset.workbookId || 0);
+      if (!workbookId) return;
       card.querySelector('.elementar-badge')?.remove();
-      const icon = card.querySelector('.icon');
-      if (context.elementarIds.has(Number(workbook.id))) {
-        if (icon) icon.textContent = '◈';
-        const badge = document.createElement('span');
-        badge.className = 'elementar-badge';
-        badge.textContent = 'Elementar';
-        card.querySelector('strong')?.insertAdjacentElement('afterend', badge);
-      } else if (icon) {
-        icon.textContent = '📊';
-      }
+      if (!context.elementarIds.has(workbookId)) return;
+      const badge = document.createElement('span');
+      badge.className = 'elementar-badge';
+      badge.textContent = 'Elementar';
+      card.querySelector('strong')?.insertAdjacentElement('afterend', badge);
     });
   }
 
@@ -102,7 +100,13 @@
     try {
       const workbook = await api('/api/workbooks', {
         method: 'POST',
-        body: JSON.stringify({ project_id: context.projectId, folder_id: context.folderId, name }),
+        body: JSON.stringify({
+          project_id: context.projectId,
+          folder_id: context.folderId,
+          name,
+          file_kind: 'elementar',
+          pipeline_stage: 'publication',
+        }),
       });
       await api(`/api/elementar/workbooks/${workbook.id}/enable`, { method: 'POST', body: '{}' });
       location.href = `/sheet/${workbook.id}`;

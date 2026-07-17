@@ -237,7 +237,7 @@ def get_folder(folder_id: int):
 
 
 def get_workbook(workbook_id: int, include_payload: bool = False):
-    select = "id,name,folder_id,project_id,revision,created_at,updated_at,created_by_email,updated_by_email"
+    select = "id,name,folder_id,project_id,revision,file_kind,pipeline_stage,created_at,updated_at,created_by_email,updated_by_email"
     if include_payload:
         select += ",payload"
     return fetch_one("workbooks", {"select": select, "id": f"eq.{workbook_id}"})

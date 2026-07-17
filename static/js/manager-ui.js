@@ -10,10 +10,7 @@
   const projectSelect = $('#project-select');
   const projectName = $('#workspace-project-name');
   const sidebarRole = $('#workspace-project-role');
-  const overviewRole = $('#overview-role');
   const roleBadge = $('#project-role');
-  const folderCount = $('#folder-count');
-  const workbookCount = $('#workbook-count');
   const visibleCount = $('#visible-count');
   const fileContext = $('#files-context');
   const STORAGE_KEY = 'super-excel-files-layout';
@@ -28,13 +25,6 @@
       .normalize('NFD')
       .replace(/[\u0300-\u036f]/g, '')
       .toLowerCase();
-  }
-
-  function itemType(element) {
-    if (element.classList.contains('back-item')) return 'back';
-    if (element.classList.contains('folder-item')) return 'folder';
-    if (element.classList.contains('workbook-item')) return 'workbook';
-    return 'other';
   }
 
   function itemTimestamp(element) {
@@ -56,7 +46,6 @@
     if (projectName) projectName.textContent = selected;
     const role = roleBadge?.textContent?.trim() || 'Carregando acesso';
     if (sidebarRole) sidebarRole.textContent = role;
-    if (overviewRole) overviewRole.textContent = role;
   }
 
   function applyLayout(nextLayout) {
@@ -71,109 +60,85 @@
 
   function decorate(element) {
     if (!element.classList.contains('item')) return;
-    const type = itemType(element);
     const name = element.querySelector('strong')?.textContent?.trim() || '';
-    element.dataset.itemType = type;
     element.dataset.itemName = normalize(name);
-
-    if (!element.querySelector('.item-type-label') && type !== 'back') {
-      const label = document.createElement('span');
-      label.className = 'item-type-label';
-      label.textContent = type === 'folder' ? 'Pasta' : 'Planilha';
-      element.querySelector('.icon')?.insertAdjacentElement('afterend', label);
-    }
-
     if (!element.hasAttribute('tabindex')) element.tabIndex = 0;
     if (element.dataset.uiDecorated === 'true') return;
     element.dataset.uiDecorated = 'true';
-    if (type === 'folder' || type === 'workbook') {
-      element.setAttribute('aria-label', `${type === 'folder' ? 'Pasta' : 'Planilha'} ${name}`);
-      element.addEventListener('keydown', event => {
-        if (event.key !== 'Enter') return;
-        event.preventDefault();
-        element.querySelector('.item-actions button')?.click();
-      });
-    }
+    element.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      element.querySelector('.item-actions button')?.click();
+    });
   }
 
-  function compareItems(left, right) {
-    const leftType = itemType(left);
-    const rightType = itemType(right);
-    if (leftType === 'back') return -1;
-    if (rightType === 'back') return 1;
-
-    const mode = sort.value;
-    if (mode === 'type') {
-      const rank = { folder: 0, workbook: 1, other: 2 };
-      const difference = (rank[leftType] ?? 3) - (rank[rightType] ?? 3);
-      if (difference) return difference;
-    }
-    if (mode === 'updated') {
+  function compareCards(left, right) {
+    if (sort.value === 'updated') {
       const difference = itemTimestamp(right) - itemTimestamp(left);
       if (difference) return difference;
     }
-
     const leftName = left.querySelector('strong')?.textContent || '';
     const rightName = right.querySelector('strong')?.textContent || '';
     return leftName.localeCompare(rightName, 'pt-BR', { sensitivity: 'base' });
+  }
+
+  function sortLane(container) {
+    if (!container) return;
+    const cards = [...container.querySelectorAll(':scope > .workbook-item')];
+    cards.sort(compareCards).forEach(card => container.append(card));
+    const empty = container.querySelector(':scope > .pipeline-lane-empty');
+    if (empty) container.append(empty);
   }
 
   function refresh() {
     if (updating) return;
     updating = true;
     try {
-      const cards = [...items.querySelectorAll(':scope > .item')];
+      const cards = [...items.querySelectorAll('.workbook-item')];
+      const folders = [...items.querySelectorAll('.folder-item')];
       cards.forEach(decorate);
-
-      const sorted = [...cards].sort(compareItems);
-      const orderChanged = sorted.some((card, index) => cards[index] !== card);
-      if (orderChanged) sorted.forEach(card => items.append(card));
+      folders.forEach(decorate);
+      items.querySelectorAll('.pipeline-lane-items').forEach(sortLane);
 
       const query = normalize(search.value.trim());
       let visible = 0;
-      let folders = 0;
-      let workbooks = 0;
+      const counts = { source: 0, calculation: 0, treated: 0, publication: 0 };
 
-      for (const card of sorted) {
-        const type = itemType(card);
-        if (type === 'folder') folders += 1;
-        if (type === 'workbook') workbooks += 1;
-        const matches = type === 'back' || !query || card.dataset.itemName.includes(query);
+      cards.forEach(card => {
+        const stage = card.dataset.pipelineStage || 'calculation';
+        counts[stage] = (counts[stage] || 0) + 1;
+        const matches = !query || card.dataset.itemName.includes(query);
         card.classList.toggle('is-filtered', !matches);
-        if (matches && type !== 'back') visible += 1;
-      }
+        if (matches) visible += 1;
+      });
+      folders.forEach(folder => {
+        const matches = !query || folder.dataset.itemName.includes(query);
+        folder.classList.toggle('is-filtered', !matches);
+      });
 
-      const nativeEmpty = items.querySelector('.empty-state:not(.search-empty-state)');
-      let searchEmpty = items.querySelector('.search-empty-state');
-      if (nativeEmpty) {
-        nativeEmpty.hidden = false;
-        const mode = query && !visible ? 'search' : 'native';
-        if (nativeEmpty.dataset.mode !== mode) {
-          nativeEmpty.dataset.mode = mode;
-          nativeEmpty.innerHTML = mode === 'search'
-            ? '<strong>Nenhum resultado encontrado</strong><span>Tente outro nome ou limpe a pesquisa.</span>'
-            : '<strong>Nenhum arquivo nesta pasta</strong><span>Crie uma pasta ou planilha para começar.</span>';
+      items.querySelectorAll('.pipeline-lane').forEach(lane => {
+        const stage = lane.dataset.stage;
+        const empty = lane.querySelector('.pipeline-lane-empty');
+        const visibleInLane = [...lane.querySelectorAll('.workbook-item')].some(card => !card.classList.contains('is-filtered'));
+        if (empty) {
+          empty.hidden = Boolean(counts[stage]) || Boolean(query && visibleInLane);
+          if (query && !visibleInLane) {
+            empty.hidden = false;
+            empty.innerHTML = '<strong>Nenhum resultado</strong><span>Nenhum arquivo desta etapa corresponde à busca.</span>';
+          }
         }
-        searchEmpty?.remove();
-      } else if (query && !visible) {
-        if (!searchEmpty) {
-          searchEmpty = document.createElement('div');
-          searchEmpty.className = 'empty-state search-empty-state';
-          searchEmpty.innerHTML = '<strong>Nenhum resultado encontrado</strong><span>Tente outro nome ou limpe a pesquisa.</span>';
-          items.append(searchEmpty);
-        }
-      } else {
-        searchEmpty?.remove();
-      }
+      });
 
-      if (folderCount) folderCount.textContent = String(folders);
-      if (workbookCount) workbookCount.textContent = String(workbooks);
-      if (visibleCount) visibleCount.textContent = `${visible} item${visible === 1 ? '' : 's'}`;
+      Object.entries(counts).forEach(([stage, count]) => {
+        const target = document.getElementById(`${stage}-count`);
+        if (target) target.textContent = String(count);
+      });
+      if (visibleCount) visibleCount.textContent = `${visible} arquivo${visible === 1 ? '' : 's'}`;
       if (fileContext) {
         const folder = $('#current-folder')?.textContent?.replace(/^›\s*/, '').trim();
         fileContext.textContent = folder
-          ? `Organizando arquivos em ${folder}`
-          : 'Centralize planilhas, pastas e recursos do projeto.';
+          ? `Pipeline organizado dentro de ${folder}.`
+          : 'Dados entram por uma Base, são calculados nas planilhas, estabilizados na Base 2 e publicados pela Elementar.';
       }
       syncProjectIdentity();
       syncProxyButtons();
@@ -201,6 +166,7 @@
   const observer = new MutationObserver(() => requestAnimationFrame(refresh));
   observer.observe(items, { childList: true, subtree: true, characterData: true });
   if (roleBadge) observer.observe(roleBadge, { childList: true, subtree: true, characterData: true });
+  items.addEventListener('superexcel:pipeline-rendered', refresh);
 
   applyLayout(layout);
   refresh();

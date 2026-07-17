@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="pt-BR" data-workbook-id="{{ preload_workbook_id or '' }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Base relacional do Super Excel, sem fórmulas e com linhas virtualizadas.">
+  <title>Super Excel — Base</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+</head>
+<body class="auth-pending base-loading">
+  <header class="base-topbar">
+    <a class="base-brand" href="/files" aria-label="Voltar aos arquivos"><span class="base-brand-mark">S</span><span><strong>Super Excel</strong><small>Base relacional</small></span></a>
+    <div class="base-title-group">
+      <input id="base-name" class="base-name" maxlength="120" value="Carregando Base" aria-label="Nome da Base">
+      <span id="base-stage" class="base-stage">Base</span>
+    </div>
+    <div class="base-actions">
+      <button id="add-column" type="button">＋ Coluna</button>
+      <button id="add-row" class="primary" type="button">＋ Registro</button>
+      <a class="button-link" href="/files">Arquivos</a>
+      <div class="auth-user compact"><img class="auth-avatar" data-auth-avatar src="" alt=""><strong data-auth-name>Conta Google</strong><button class="auth-signout" type="button" data-auth-signout>Sair</button></div>
+    </div>
+  </header>
+
+  <main class="base-main">
+    <section class="base-context" aria-label="Informações da Base">
+      <div><span class="context-label">Armazenamento</span><strong>PostgreSQL relacional</strong></div>
+      <div><span class="context-label">Cálculo</span><strong>Desativado</strong></div>
+      <div><span class="context-label">Registros</span><strong id="base-row-count">0</strong></div>
+      <div><span class="context-label">Colunas</span><strong id="base-column-count">0</strong></div>
+      <p id="base-status" role="status">Carregando estrutura…</p>
+    </section>
+
+    <section class="base-grid-shell" aria-label="Dados relacionais">
+      <div id="base-grid-header" class="base-grid-header"></div>
+      <div id="base-grid-viewport" class="base-grid-viewport" tabindex="0">
+        <div id="base-grid-spacer" class="base-grid-spacer"></div>
+        <div id="base-grid-layer" class="base-grid-layer"></div>
+        <div id="base-empty" class="base-empty" hidden><strong>Nenhum registro</strong><span>Adicione o primeiro registro desta Base.</span></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="column-dialog" class="base-dialog">
+    <form id="column-form">
+      <div><span class="dialog-kicker">Estrutura relacional</span><h2>Nova coluna</h2><p>Colunas definem o esquema da Base. Fórmulas não são permitidas.</p></div>
+      <label>Nome<input name="name" maxlength="120" placeholder="Ex.: cliente" required></label>
+      <label>Tipo<select name="data_type"><option value="text">Texto</option><option value="number">Número</option><option value="boolean">Verdadeiro/Falso</option><option value="date">Data</option><option value="datetime">Data e hora</option><option value="json">JSON</option></select></label>
+      <label class="check-label"><input name="required" type="checkbox"> Valor obrigatório</label>
+      <p id="column-error" class="dialog-error"></p>
+      <div class="dialog-actions"><button type="button" data-close-column>Cancelar</button><button id="column-save" class="primary" type="submit">Criar coluna</button></div>
+    </form>
+  </dialog>
+
+  <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
+  <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/base-grid.js') }}"></script>
+</body>
+</html>
