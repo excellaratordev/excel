@@ -6,6 +6,7 @@ import backend
 import workbook_routes
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
+from asset_routes import assets_api
 from backend import (
     SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_URL,
@@ -33,6 +34,7 @@ app = Flask(__name__)
 app.config["JSON_AS_ASCII"] = False
 app.config["MAX_CONTENT_LENGTH"] = MAX_WORKBOOK_BYTES + 512 * 1024
 app.before_request(protect_api_routes)
+app.register_blueprint(assets_api)
 app.register_blueprint(projects_api)
 app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
