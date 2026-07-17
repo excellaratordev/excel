@@ -8,6 +8,7 @@
   const originalCreate = engineApi.create.bind(engineApi);
   const probe = originalCreate([]);
   const prototype = Object.getPrototypeOf(probe);
+  const instances = new Set();
   probe.destroy?.();
 
   function ensure(instance) {
@@ -159,6 +160,7 @@
   const originalDestroy = prototype.destroy;
   prototype.destroy = function destroyWithExternalReferences() {
     ensure(this);
+    instances.delete(this);
     this.externalSources.clear();
     this.externalDependents.clear();
     this.formulaExternalSources.clear();
@@ -169,10 +171,27 @@
   engineApi.create = function createWithExternalReferences(data, options = {}) {
     const instance = originalCreate(data);
     ensure(instance);
+    instances.add(instance);
     if (Array.isArray(options.externalSources)) {
       instance.setExternalSources(options.externalSources, { replace: true });
     }
     return instance;
   };
+
+  engineApi.setExternalSources = function setExternalSourcesForActiveEngines(sources, options = {}) {
+    const results = [];
+    for (const instance of instances) results.push(instance.setExternalSources(sources, options));
+    window.dispatchEvent(new CustomEvent('superexcel:external-sources-updated', {
+      detail: { sources: Array.isArray(sources) ? sources.length : 0, results },
+    }));
+    window.dispatchEvent(new Event('resize'));
+    return results.at(-1) || { source_count: 0, cell_count: 0, changed_sources: [] };
+  };
+
+  engineApi.getExternalDependencies = function getExternalDependenciesFromActiveEngine() {
+    const instance = [...instances].at(-1);
+    return instance?.getExternalDependencies?.() || [];
+  };
+
   engineApi.externalReferencesInstalled = true;
 })();
