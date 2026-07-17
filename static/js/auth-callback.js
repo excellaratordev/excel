@@ -49,7 +49,9 @@
     const response = await fetch('/api/auth/config', { headers: { Accept: 'application/json' } });
     const config = await response.json();
     if (!response.ok) throw new Error(config.error || 'Não foi possível carregar a configuração de login.');
-    if (!window.supabase?.createClient) throw new Error('A biblioteca de autenticação não foi carregada.');
+    if (!window.supabase?.createClient) {
+      throw new Error(window.__SUPEREXCEL_SUPABASE_LOAD_ERROR__ || 'O cliente de autenticação não foi disponibilizado pelo servidor.');
+    }
 
     const client = window.supabase.createClient(config.supabase_url, config.publishable_key, {
       auth: {
