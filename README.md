@@ -65,7 +65,7 @@ O arquivo `render.yaml` já define o build, o comando de inicialização e o hea
 
 ## Conector GitHub
 
-A integração usa um GitHub App com acesso de leitura ao conteúdo do repositório. Ela não armazena tokens pessoais do cliente.
+A integração usa um GitHub App com acesso de leitura ao conteúdo do repositório. Ela não armazena tokens pessoais do cliente e confirma por OAuth que o usuário realmente possui acesso à instalação e ao repositório escolhidos.
 
 Após a instalação, o Super Excel faz uma importação inicial e passa a reagir aos webhooks de `push`. Um merge na branch monitorada também gera um `push`.
 
@@ -77,7 +77,12 @@ GITHUB_APP_SLUG=
 GITHUB_APP_PRIVATE_KEY=
 GITHUB_APP_WEBHOOK_SECRET=
 GITHUB_STATE_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+GITHUB_OAUTH_CALLBACK_URL=https://SEU-DOMINIO/github/callback
 ```
+
+No GitHub App, use `/github/setup` como Setup URL, `/github/callback` como Callback URL e `/webhooks/github` como Webhook URL.
 
 Aplique a migration `supabase/migrations/20260717033000_create_github_template_connector.sql` e consulte `docs/GITHUB_TEMPLATE_CONNECTOR.md`.
 
