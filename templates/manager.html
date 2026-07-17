@@ -10,6 +10,19 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/invite-controls.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager-topbar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
+  <style>
+    .create-menu { position: relative; }
+    .create-menu > summary { list-style: none; cursor: pointer; user-select: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--green, #18864b); color: #fff; font: inherit; font-weight: 700; white-space: nowrap; }
+    .create-menu > summary::-webkit-details-marker { display: none; }
+    .create-menu > summary::after { content: '▾'; font-size: 11px; transition: transform .16s ease; }
+    .create-menu[open] > summary::after { transform: rotate(180deg); }
+    .create-menu-list { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: 210px; padding: 7px; border: 1px solid rgba(15, 23, 42, .12); border-radius: 12px; background: #fff; box-shadow: 0 16px 40px rgba(15, 23, 42, .18); }
+    .create-menu-list button { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #172033; font: inherit; text-align: left; cursor: pointer; }
+    .create-menu-list button:hover, .create-menu-list button:focus-visible { background: rgba(24, 134, 75, .09); outline: none; }
+    .create-menu-list button span { width: 20px; text-align: center; color: var(--green, #18864b); font-weight: 800; }
+    .page-heading-actions .create-menu > summary { min-height: 44px; }
+    @media (max-width: 680px) { .page-heading-actions .create-menu { width: 100%; } .page-heading-actions .create-menu > summary { width: 100%; } .create-menu-list { left: 0; right: auto; width: min(240px, 100%); } }
+  </style>
 </head>
 <body class="auth-pending">
   <header class="manager-topbar">
@@ -33,9 +46,14 @@
     </div>
 
     <div class="actions" aria-label="Ações de arquivos">
-      <button id="new-folder" class="secondary-action" type="button"><span aria-hidden="true">＋</span>Pasta</button>
-      <button id="new-elementar" class="secondary-action" type="button"><span aria-hidden="true">◈</span>Elementar</button>
-      <button id="new-sheet" class="primary" type="button"><span aria-hidden="true">＋</span>Nova planilha</button>
+      <details class="create-menu">
+        <summary>Novo</summary>
+        <div class="create-menu-list" role="menu" aria-label="Criar novo item">
+          <button id="new-folder" type="button" role="menuitem"><span aria-hidden="true">▰</span>Nova pasta</button>
+          <button id="new-sheet" type="button" role="menuitem"><span aria-hidden="true">▦</span>Nova planilha</button>
+          <button id="new-elementar" type="button" role="menuitem"><span aria-hidden="true">◈</span>Novo Elementar</button>
+        </div>
+      </details>
     </div>
 
     <div class="topbar-account">
@@ -80,9 +98,14 @@
             <p id="files-context">Centralize planilhas, pastas e recursos do projeto.</p>
           </div>
           <div class="page-heading-actions">
-            <button class="secondary-action mobile-create-folder" type="button" data-proxy-click="new-folder"><span aria-hidden="true">＋</span>Pasta</button>
-            <button class="secondary-action" type="button" data-proxy-click="new-elementar"><span aria-hidden="true">◈</span>Elementar</button>
-            <button class="primary mobile-create-sheet" type="button" data-proxy-click="new-sheet"><span aria-hidden="true">＋</span>Nova planilha</button>
+            <details class="create-menu">
+              <summary>Novo</summary>
+              <div class="create-menu-list" role="menu" aria-label="Criar novo item">
+                <button type="button" role="menuitem" data-proxy-click="new-folder"><span aria-hidden="true">▰</span>Nova pasta</button>
+                <button type="button" role="menuitem" data-proxy-click="new-sheet"><span aria-hidden="true">▦</span>Nova planilha</button>
+                <button type="button" role="menuitem" data-proxy-click="new-elementar"><span aria-hidden="true">◈</span>Novo Elementar</button>
+              </div>
+            </details>
           </div>
         </header>
 
