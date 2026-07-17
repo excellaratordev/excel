@@ -11,13 +11,15 @@
   function capture() {
     const app = window.SuperExcelApp;
     if (!app) return null;
-    const maxRows = Math.min(120, Number(app.rows) || 60);
-    const maxCols = Math.min(50, Number(app.cols) || 26);
+    const logicalRows = Math.max(1, Number(app.rows) || 60);
+    const logicalCols = Math.max(1, Number(app.cols) || 26);
+    const visibleRows = Math.min(120, logicalRows);
+    const visibleCols = Math.min(50, logicalCols);
     const cells = [];
     document.querySelectorAll('#spreadsheet .cell').forEach(element => {
       const row = Number(element.dataset.row);
       const col = Number(element.dataset.col);
-      if (row >= maxRows || col >= maxCols) return;
+      if (row >= visibleRows || col >= visibleCols) return;
       const display = element.textContent || '';
       if (!display) return;
       cells.push({ r: row, c: col, d: display });
@@ -25,8 +27,10 @@
     return {
       version: 1,
       name: document.querySelector('#workbook-name')?.value || 'Planilha',
-      rows: maxRows,
-      cols: maxCols,
+      rows: logicalRows,
+      cols: logicalCols,
+      visible_rows: visibleRows,
+      visible_cols: visibleCols,
       cells,
       generated_at: new Date().toISOString(),
     };
@@ -36,6 +40,12 @@
     if (!hydrated || saving || !snapshot || !navigator.onLine) return;
     saving = true;
     try {
+      const pending = await window.SuperExcelOperationStore?.count?.(workbookId) || 0;
+      if (pending > 0) {
+        window.setTimeout(() => saveServer(snapshot), 1000);
+        return;
+      }
+
       const configResponse = await fetch(`/api/workbooks/${workbookId}/collaboration-config`);
       const config = await configResponse.json();
       if (!configResponse.ok) throw new Error(config.error || 'Falha ao obter revisão atual.');
@@ -83,6 +93,7 @@
     schedule(150);
   });
   window.addEventListener('superexcel:changes', () => schedule(450));
+  window.addEventListener('superexcel:rendered', () => schedule(450));
   window.addEventListener('superexcel:name', () => schedule(450));
   window.addEventListener('beforeunload', () => {
     const snapshot = capture();
