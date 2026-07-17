@@ -10,6 +10,7 @@ from performance_cache import install as install_performance_cache
 install_performance_cache(backend)
 install_capabilities(backend)
 
+import elementar_automation_routes
 import workbook_routes
 from flask import Flask, jsonify, redirect, render_template, request, url_for
 
@@ -24,7 +25,7 @@ from backend import (
     protect_api_routes,
 )
 from collaboration_routes import collaboration_api
-from elementar_automation_routes import elementar_automation_api
+from elementar_automation_values import install as install_elementar_value_reuse
 from elementar_routes import elementar_api
 from files_routes import files_api
 from github_connector import github_api
@@ -41,6 +42,7 @@ from workbook_routes import workbooks_api
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
 
 workbook_routes.empty_workbook = compact_empty_workbook
+install_elementar_value_reuse(elementar_automation_routes)
 install_secure_connector()
 
 app = Flask(__name__)
@@ -59,7 +61,7 @@ app.register_blueprint(roles_api)
 app.register_blueprint(snapshot_api)
 app.register_blueprint(telemetry_api)
 app.register_blueprint(elementar_api)
-app.register_blueprint(elementar_automation_api)
+app.register_blueprint(elementar_automation_routes.elementar_automation_api)
 app.register_blueprint(github_oauth_api)
 app.register_blueprint(github_api)
 app.register_blueprint(github_sites_api)
