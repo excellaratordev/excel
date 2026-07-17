@@ -8,11 +8,20 @@ from typing import Any
 
 from flask import Blueprint, jsonify, make_response, request
 
-from backend import api_error, current_email, db, fetch_one, get_workbook, json_body, list_user_projects, require_project
+from backend import api_error, current_email, db, fetch_one, get_workbook, json_body, require_project
+from superexcel.core.file_pipeline import (
+    FILE_KIND_BASE,
+    STAGE_PUBLICATION,
+    STAGE_TREATED,
+    is_elementar,
+)
+
 
 elementar_api = Blueprint("elementar_api", __name__)
 MAX_REFS, MAX_SOURCES = 100, 20
 MAX_SOURCE_BYTES, MAX_OUTPUT_BYTES = 20 * 1024 * 1024, 2 * 1024 * 1024
+MAX_SOURCE_CELLS = 250_000
+MAX_SOURCE_ROW = 100_000
 RANGE_RE = re.compile(r"^\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?$")
 SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 
@@ -29,9 +38,9 @@ def config_for(workbook_id: int):
 def access(workbook_id: int, role="viewer"):
     workbook, response = get_workbook(workbook_id)
     if not response.ok:
-        return None, None, api_error(response, "Erro ao abrir a planilha")
+        return None, None, api_error(response, "Erro ao abrir a Elementar")
     if not workbook:
-        return None, None, (jsonify({"error": "Planilha não encontrada."}), 404)
+        return None, None, (jsonify({"error": "Arquivo não encontrado."}), 404)
     _, current_role, error = require_project(int(workbook["project_id"]), role)
     return workbook, current_role, error
 
@@ -50,9 +59,12 @@ def view(config, current_role=None):
     public = f"/public/elementar/{config['public_token']}" if config["visibility"] == "public" else None
     return {
         "enabled": True,
+        "convertible": False,
         "role": current_role,
         "workbook_id": int(config["workbook_id"]),
         "project_id": int(config["project_id"]),
+        "file_kind": "elementar",
+        "pipeline_stage": STAGE_PUBLICATION,
         "slug": config["slug"],
         "visibility": config["visibility"],
         "public_token": config["public_token"],
@@ -64,15 +76,25 @@ def view(config, current_role=None):
 
 
 def ensure(workbook, create=False):
+    if not is_elementar(workbook):
+        return None, (
+            jsonify({
+                "error": "Uma Elementar deve ser criada na etapa 4 do pipeline. Uma planilha comum não pode ser convertida.",
+            }),
+            409,
+        )
     row, response = config_for(int(workbook["id"]))
     if not response.ok:
         return None, api_error(response, "Erro ao verificar a configuração Elementar")
     if row or not create:
         return row, None
     payload = {
-        "workbook_id": int(workbook["id"]), "project_id": int(workbook["project_id"]),
-        "slug": f"{slugify(workbook.get('name'))}-{workbook['id']}", "visibility": "private",
-        "public_token": secrets.token_urlsafe(32), "created_by_email": current_email(),
+        "workbook_id": int(workbook["id"]),
+        "project_id": int(workbook["project_id"]),
+        "slug": f"{slugify(workbook.get('name'))}-{workbook['id']}",
+        "visibility": "private",
+        "public_token": secrets.token_urlsafe(32),
+        "created_by_email": current_email(),
     }
     response = db("POST", "elementar_configs", payload=payload, prefer="return=representation")
     return (response.json()[0], None) if response.ok and response.json() else (None, api_error(response, "Erro ao ativar a Elementar"))
@@ -97,6 +119,131 @@ def normalize_refs(value):
     return output, None
 
 
+def column_index(name: str) -> int:
+    result = 0
+    for character in str(name).replace("$", "").upper():
+        result = result * 26 + ord(character) - 64
+    return result - 1
+
+
+def parse_address(value: str) -> tuple[int, int]:
+    match = re.fullmatch(r"\$?([A-Z]{1,3})\$?(\d+)", str(value).upper())
+    if not match:
+        raise ValueError("Intervalo inválido.")
+    row = int(match.group(2)) - 1
+    col = column_index(match.group(1))
+    if row < 0 or row >= MAX_SOURCE_ROW or col < 0:
+        raise ValueError(f"A Elementar aceita linhas até {MAX_SOURCE_ROW}.")
+    return row, col
+
+
+def parse_range(value: str) -> dict[str, int]:
+    start_text, *end_text = str(value).split(":", 1)
+    start = parse_address(start_text)
+    end = parse_address(end_text[0] if end_text else start_text)
+    return {
+        "top": min(start[0], end[0]),
+        "bottom": max(start[0], end[0]),
+        "left": min(start[1], end[1]),
+        "right": max(start[1], end[1]),
+    }
+
+
+def base_columns(workbook_id: int) -> tuple[list[dict[str, Any]], Any]:
+    response = db("GET", "base_columns", params={
+        "select": "id,column_key,name,data_type,position",
+        "workbook_id": f"eq.{workbook_id}",
+        "order": "position.asc,id.asc",
+    })
+    return (response.json() if response.ok else []), response
+
+
+def relational_source_payload(source: dict[str, Any], references: list[dict[str, Any]]) -> tuple[dict[str, Any] | None, str | None]:
+    columns, response = base_columns(int(source["id"]))
+    if not response.ok:
+        return None, "Erro ao carregar as colunas da Base 2."
+    bounds = []
+    area = 0
+    try:
+        for reference in references:
+            current = parse_range(reference["range"])
+            if current["right"] >= len(columns):
+                return None, f"A Base 2 {source['name']} não possui a coluna usada em {reference['range']}."
+            area += (current["bottom"] - current["top"] + 1) * (current["right"] - current["left"] + 1)
+            bounds.append(current)
+    except ValueError as error:
+        return None, str(error)
+    if area > MAX_SOURCE_CELLS:
+        return None, f"As declarações de {source['name']} excedem {MAX_SOURCE_CELLS:,} células."
+
+    requested: dict[int, set[int]] = {}
+    for current in bounds:
+        for row in range(current["top"], current["bottom"] + 1):
+            requested.setdefault(row, set()).update(range(current["left"], current["right"] + 1))
+
+    cells: list[dict[str, Any]] = []
+    for col in sorted(requested.get(0, set())):
+        cells.append({"r": 0, "c": col, "v": columns[col]["name"]})
+
+    data_rows = sorted(row for row in requested if row > 0)
+    if data_rows:
+        first_sheet_row, last_sheet_row = data_rows[0], data_rows[-1]
+        offset = first_sheet_row - 1
+        limit = last_sheet_row - first_sheet_row + 1
+        response = db("GET", "base_rows", params={
+            "select": "row_order,values",
+            "workbook_id": f"eq.{source['id']}",
+            "order": "row_order.asc,id.asc",
+            "offset": str(offset),
+            "limit": str(limit),
+        })
+        if not response.ok:
+            return None, "Erro ao carregar os registros da Base 2."
+        for index, row in enumerate(response.json()):
+            sheet_row = first_sheet_row + index
+            for col in sorted(requested.get(sheet_row, set())):
+                value = (row.get("values") or {}).get(columns[col]["column_key"])
+                if value is not None and value != "":
+                    cells.append({"r": sheet_row, "c": col, "v": value})
+
+    payload = {
+        "version": 1,
+        "storage": "sparse",
+        "name": source["name"],
+        "rows": max((item["bottom"] for item in bounds), default=0) + 1,
+        "cols": max((item["right"] for item in bounds), default=-1) + 1,
+        "cells": cells,
+        "source": "relational-base",
+        "pipeline_stage": STAGE_TREATED,
+    }
+    return payload, None
+
+
+def replace_file_dependencies(project_id: int, target_id: int, source_ids: list[int]) -> Any | None:
+    response = db(
+        "DELETE",
+        "file_dependencies",
+        params={"target_workbook_id": f"eq.{target_id}"},
+        prefer="return=minimal",
+    )
+    if not response.ok:
+        return api_error(response, "Erro ao atualizar o pipeline da Elementar")
+    if not source_ids:
+        return None
+    response = db(
+        "POST",
+        "file_dependencies",
+        payload=[{
+            "project_id": project_id,
+            "source_workbook_id": source_id,
+            "target_workbook_id": target_id,
+            "created_by_email": current_email(),
+        } for source_id in source_ids],
+        prefer="return=minimal",
+    )
+    return None if response.ok else api_error(response, "Erro ao registrar as origens tratadas")
+
+
 @elementar_api.get("/api/elementar")
 def list_elementar():
     try:
@@ -108,7 +255,8 @@ def list_elementar():
         return error
     response = db("GET", "elementar_configs", params={
         "select": "workbook_id,project_id,slug,visibility,last_publication_version,updated_at",
-        "project_id": f"eq.{project_id}", "order": "updated_at.desc",
+        "project_id": f"eq.{project_id}",
+        "order": "updated_at.desc",
     })
     return jsonify(response.json()) if response.ok else api_error(response, "Erro ao listar Elementares")
 
@@ -130,7 +278,17 @@ def get_config(workbook_id):
     config, response = config_for(workbook_id)
     if not response.ok:
         return api_error(response, "Erro ao carregar a Elementar")
-    return jsonify(view(config, role) if config else {"enabled": False, "role": role, "workbook_id": workbook_id, "project_id": workbook["project_id"]})
+    if config:
+        return jsonify(view(config, role))
+    return jsonify({
+        "enabled": False,
+        "convertible": False,
+        "role": role,
+        "workbook_id": workbook_id,
+        "project_id": workbook["project_id"],
+        "file_kind": workbook.get("file_kind"),
+        "pipeline_stage": workbook.get("pipeline_stage"),
+    })
 
 
 @elementar_api.patch("/api/elementar/workbooks/<int:workbook_id>/settings")
@@ -142,7 +300,7 @@ def settings(workbook_id):
     if error:
         return error
     if not config:
-        return jsonify({"error": "Esta planilha não é Elementar."}), 404
+        return jsonify({"error": "Este arquivo não é Elementar."}), 404
     body = json_body()
     slug = str(body.get("slug", config["slug"])).strip().lower()
     visibility = str(body.get("visibility", config["visibility"])).lower()
@@ -164,7 +322,7 @@ def rotate_token(workbook_id):
     if error:
         return error
     if not config:
-        return jsonify({"error": "Esta planilha não é Elementar."}), 404
+        return jsonify({"error": "Este arquivo não é Elementar."}), 404
     response = db("PATCH", "elementar_configs", params={"workbook_id": f"eq.{workbook_id}"},
                   payload={"public_token": secrets.token_urlsafe(32)}, prefer="return=representation")
     return jsonify(view(response.json()[0], role)) if response.ok and response.json() else api_error(response, "Erro ao trocar o token")
@@ -175,8 +333,9 @@ def disable(workbook_id):
     _, _, error = access(workbook_id, "editor")
     if error:
         return error
-    response = db("DELETE", "elementar_configs", params={"workbook_id": f"eq.{workbook_id}"}, prefer="return=representation")
-    return jsonify({"disabled": bool(response.json())}) if response.ok else api_error(response, "Erro ao desativar a Elementar")
+    return jsonify({
+        "error": "Elementar é a etapa 4 do pipeline e não pode ser convertida. Exclua o arquivo para removê-la.",
+    }), 409
 
 
 @elementar_api.post("/api/elementar/workbooks/<int:workbook_id>/resolve")
@@ -188,49 +347,63 @@ def resolve(workbook_id):
     if error:
         return error
     if not config:
-        return jsonify({"error": "Esta planilha não é Elementar."}), 404
+        return jsonify({"error": "Este arquivo não é Elementar."}), 404
     refs, message = normalize_refs(json_body().get("references"))
     if message:
         return jsonify({"error": message}), 400
 
-    projects = list_user_projects()
-    ids = [int(item["id"]) for item in projects]
-    names = {int(item["id"]): item.get("name") for item in projects}
+    project_id = int(workbook["project_id"])
     response = db("GET", "workbooks", params={
-        "select": "id,name,project_id,revision,updated_at", "project_id": f"in.({','.join(map(str, ids))})",
+        "select": "id,name,project_id,revision,file_kind,pipeline_stage,updated_at",
+        "project_id": f"eq.{project_id}",
+        "file_kind": f"eq.{FILE_KIND_BASE}",
+        "pipeline_stage": f"eq.{STAGE_TREATED}",
+        "order": "name.asc,id.asc",
     })
     if not response.ok:
-        return api_error(response, "Erro ao localizar as origens")
-    by_name = {}
+        return api_error(response, "Erro ao localizar as Bases tratadas")
+    by_name: dict[str, list[dict[str, Any]]] = {}
     for item in response.json():
         by_name.setdefault(str(item["name"]).casefold(), []).append(item)
 
-    selected, resolved = {}, []
+    selected: dict[int, dict[str, Any]] = {}
+    refs_by_source: dict[int, list[dict[str, Any]]] = {}
+    resolved = []
     for ref in refs:
         matches = by_name.get(ref["workbook_name"].casefold(), [])
         if not matches:
-            return jsonify({"error": f"Planilha não encontrada: {ref['workbook_name']}."}), 404
+            return jsonify({
+                "error": f"Base 2 não encontrada: {ref['workbook_name']}. A Elementar só pode consumir dados tratados da etapa 3.",
+            }), 404
         if len(matches) > 1:
-            places = ", ".join(f"{names.get(int(m['project_id']))} (ID {m['id']})" for m in matches[:5])
-            return jsonify({"error": f"Há mais de uma planilha chamada {ref['workbook_name']}: {places}."}), 409
+            return jsonify({"error": f"Há mais de uma Base 2 chamada {ref['workbook_name']} neste projeto."}), 409
         source_id = int(matches[0]["id"])
-        if source_id == workbook_id:
-            return jsonify({"error": "Uma Elementar não pode referenciar a si mesma."}), 400
         selected[source_id] = matches[0]
+        refs_by_source.setdefault(source_id, []).append(ref)
         resolved.append({**ref, "workbook_id": source_id})
     if len(selected) > MAX_SOURCES:
-        return jsonify({"error": "A Elementar excede 20 planilhas de origem."}), 400
+        return jsonify({"error": "A Elementar excede 20 Bases tratadas de origem."}), 400
 
-    response = db("GET", "workbooks", params={
-        "select": "id,name,project_id,revision,payload,updated_at", "id": f"in.({','.join(map(str, selected))})",
+    sources = []
+    total_size = 0
+    for source_id, source in selected.items():
+        payload, payload_error = relational_source_payload(source, refs_by_source[source_id])
+        if payload_error:
+            return jsonify({"error": payload_error}), 400
+        result = {**source, "payload": payload}
+        total_size += len(json.dumps(payload, ensure_ascii=False, allow_nan=False).encode("utf-8"))
+        sources.append(result)
+    if total_size > MAX_SOURCE_BYTES:
+        return jsonify({"error": "As Bases tratadas selecionadas excedem 20 MB."}), 413
+
+    dependency_error = replace_file_dependencies(project_id, workbook_id, sorted(selected))
+    if dependency_error:
+        return dependency_error
+    return jsonify({
+        "definition_revision": int(workbook.get("revision") or 1),
+        "references": resolved,
+        "sources": sources,
     })
-    if not response.ok:
-        return api_error(response, "Erro ao carregar as origens")
-    sources = response.json()
-    size = sum(len(json.dumps(item.get("payload") or {}, ensure_ascii=False).encode()) for item in sources)
-    if size > MAX_SOURCE_BYTES:
-        return jsonify({"error": "As origens excedem 20 MB."}), 413
-    return jsonify({"definition_revision": int(workbook.get("revision") or 1), "references": resolved, "sources": sources})
 
 
 def validate_sources(value):
@@ -252,7 +425,7 @@ def publish(workbook_id):
     if error:
         return error
     if not config:
-        return jsonify({"error": "Esta planilha não é Elementar."}), 404
+        return jsonify({"error": "Este arquivo não é Elementar."}), 404
     body = json_body()
     payload = body.get("payload")
     if not isinstance(payload, dict):
@@ -274,24 +447,33 @@ def publish(workbook_id):
     for source in sources:
         row, response = get_workbook(source["id"])
         if not response.ok or not row:
-            return jsonify({"error": "Uma origem não está mais disponível."}), 409
-        _, _, access_error = require_project(int(row["project_id"]), "viewer")
-        if access_error:
-            return access_error
+            return jsonify({"error": "Uma Base 2 não está mais disponível."}), 409
+        if int(row.get("project_id") or 0) != int(workbook["project_id"]):
+            return jsonify({"error": "A origem tratada pertence a outro projeto."}), 409
+        if row.get("file_kind") != FILE_KIND_BASE or row.get("pipeline_stage") != STAGE_TREATED:
+            return jsonify({"error": f"{row.get('name')} não é uma Base 2 tratada."}), 409
         if int(row.get("revision") or 1) != source["revision"]:
-            return jsonify({"error": f"A planilha {row.get('name')} mudou. Gere a prévia novamente."}), 409
+            return jsonify({"error": f"A Base 2 {row.get('name')} mudou. Gere a prévia novamente."}), 409
         revisions[str(source["id"])] = source["revision"]
 
     latest = db("GET", "elementar_publications", params={
-        "select": "version", "workbook_id": f"eq.{workbook_id}", "order": "version.desc", "limit": "1",
+        "select": "version",
+        "workbook_id": f"eq.{workbook_id}",
+        "order": "version.desc",
+        "limit": "1",
     })
     if not latest.ok:
         return api_error(latest, "Erro ao versionar a publicação")
     version = int(latest.json()[0]["version"]) + 1 if latest.json() else 1
     record = {
-        "workbook_id": workbook_id, "project_id": int(workbook["project_id"]), "version": version,
-        "payload": payload, "definition_revision": definition_revision, "source_revisions": revisions,
-        "declarations": body["declarations"], "created_by_email": current_email(),
+        "workbook_id": workbook_id,
+        "project_id": int(workbook["project_id"]),
+        "version": version,
+        "payload": payload,
+        "definition_revision": definition_revision,
+        "source_revisions": revisions,
+        "declarations": body["declarations"],
+        "created_by_email": current_email(),
     }
     response = db("POST", "elementar_publications", payload=record, prefer="return=representation")
     if response.status_code == 409:
@@ -301,7 +483,8 @@ def publish(workbook_id):
         return api_error(response, "Erro ao publicar a Elementar")
     published = response.json()[0]
     response = db("PATCH", "elementar_configs", params={"workbook_id": f"eq.{workbook_id}"}, payload={
-        "last_publication_id": published["id"], "last_publication_version": published["version"],
+        "last_publication_id": published["id"],
+        "last_publication_version": published["version"],
         "published_at": published.get("created_at"),
     }, prefer="return=representation")
     return jsonify({**view(response.json()[0], role), "payload_bytes": len(encoded)}) if response.ok and response.json() else api_error(response, "Erro ao ativar a publicação")
@@ -311,14 +494,18 @@ def serve(config):
     if not config.get("last_publication_id"):
         return jsonify({"error": "Esta Elementar ainda não foi publicada."}), 404
     row, response = fetch_one("elementar_publications", {
-        "select": "id,version,payload,created_at", "id": f"eq.{config['last_publication_id']}",
+        "select": "id,version,payload,created_at",
+        "id": f"eq.{config['last_publication_id']}",
     })
     if not response.ok or not row:
         return jsonify({"error": "Publicação não encontrada."}), 404
     etag = f'"elementar-{config["workbook_id"]}-{row["version"]}"'
     output = make_response("", 304) if request.headers.get("If-None-Match") == etag else make_response(jsonify(row["payload"]))
-    output.headers.update({"ETag": etag, "X-Elementar-Version": str(row["version"]),
-                           "Cache-Control": "public, max-age=30, stale-while-revalidate=120"})
+    output.headers.update({
+        "ETag": etag,
+        "X-Elementar-Version": str(row["version"]),
+        "Cache-Control": "public, max-age=30, stale-while-revalidate=120",
+    })
     if row.get("created_at"):
         output.headers["X-Elementar-Published-At"] = str(row["created_at"])
     return output
@@ -336,7 +523,9 @@ def private_data(slug):
 @elementar_api.get("/public/elementar/<token>")
 def public_data(token):
     config, response = fetch_one("elementar_configs", {
-        "select": "*", "public_token": f"eq.{token}", "visibility": "eq.public",
+        "select": "*",
+        "public_token": f"eq.{token}",
+        "visibility": "eq.public",
     })
     if not response.ok or not config:
         return jsonify({"error": "Elementar pública não encontrada."}), 404
