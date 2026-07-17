@@ -1,6 +1,13 @@
 (() => {
   'use strict';
 
+  if (window.parent !== window && !document.querySelector('script[data-workbook-value-bridge]')) {
+    const bridgeScript = document.createElement('script');
+    bridgeScript.src = '/static/js/workbook-value-bridge.js';
+    bridgeScript.dataset.workbookValueBridge = 'true';
+    document.head.append(bridgeScript);
+  }
+
   const workbookId = Number(document.documentElement.dataset.workbookId || 0);
   if (!workbookId) return;
 
