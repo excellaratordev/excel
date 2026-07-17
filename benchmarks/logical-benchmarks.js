@@ -12,6 +12,7 @@ function loadRuntime() {
     'function-library.js',
     'formula-runtime.js',
     'logical-library.js',
+    'logical-localization-ptbr.js',
   ]) {
     require(path.join(__dirname, '../static/js/calculation', file));
   }
