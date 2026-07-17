@@ -44,6 +44,13 @@
     return new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]), Number(match[4]), Number(match[5]), Number(match[6] || 0)).getTime();
   }
 
+  function syncProxyButtons() {
+    document.querySelectorAll('[data-proxy-click]').forEach(button => {
+      const target = document.getElementById(button.dataset.proxyClick);
+      button.disabled = Boolean(target?.disabled);
+    });
+  }
+
   function syncProjectIdentity() {
     const selected = projectSelect?.selectedOptions?.[0]?.textContent?.trim() || 'Projeto';
     if (projectName) projectName.textContent = selected;
@@ -169,6 +176,7 @@
           : 'Centralize planilhas, pastas e recursos do projeto.';
       }
       syncProjectIdentity();
+      syncProxyButtons();
     } finally {
       updating = false;
     }
