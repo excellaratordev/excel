@@ -18,6 +18,7 @@ from backend import (
 )
 from collaboration_routes import collaboration_api
 from files_routes import files_api
+from github_connector import github_api
 from performance_cache import install as install_performance_cache
 from projects_routes import projects_api
 from snapshot_routes import snapshot_api
@@ -41,6 +42,7 @@ app.register_blueprint(workbooks_api)
 app.register_blueprint(collaboration_api)
 app.register_blueprint(snapshot_api)
 app.register_blueprint(telemetry_api)
+app.register_blueprint(github_api)
 
 
 @app.get("/")
