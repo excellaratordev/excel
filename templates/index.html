@@ -10,6 +10,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collaboration.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/snapshot.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/virtual-grid.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
 </head>
 <body class="auth-pending sheet-loading">
   <div id="snapshot-layer" class="snapshot-layer" hidden aria-label="Pré-visualização instantânea da planilha"></div>
@@ -22,6 +23,8 @@
       <div><strong id="collaboration-state">Conectando...</strong><small id="collaboration-detail">Sincronização automática</small></div>
     </div>
     <div class="top-actions">
+      <button id="elementar-enable-button" type="button" hidden>Tornar Elementar</button>
+      <button id="elementar-mode-button" type="button" hidden>◈ Elementar</button>
       <button type="button" onclick="location.href='/files'">Arquivos</button>
       <button id="new-button" type="button">Nova</button>
       <button id="open-button" type="button">Abrir</button>
@@ -46,12 +49,61 @@
       <label class="file-button" for="import-input">Importar JSON</label>
       <input id="import-input" type="file" accept="application/json,.json" hidden>
     </section>
+    <section id="elementar-panel" class="elementar-panel" hidden aria-label="Publicação Elementar">
+      <div>
+        <h2>◈ Saída Elementar</h2>
+        <p>Declare uma propriedade por célula: <code>pedidos='Planilha de Pedidos'!A1:D100</code>. Uma célula gera um valor; uma linha ou coluna gera uma lista; uma tabela com cabeçalhos gera uma lista de objetos.</p>
+      </div>
+      <div class="elementar-endpoint-block">
+        <div class="elementar-endpoint-label">Endpoint <span id="elementar-version" class="elementar-version">Não publicada</span></div>
+        <span id="elementar-endpoint" class="elementar-endpoint"></span>
+      </div>
+      <div class="elementar-actions">
+        <button id="elementar-preview-button" type="button">Prévia JSON</button>
+        <button id="elementar-publish-button" class="primary" type="button" disabled>Publicar</button>
+        <button id="elementar-copy-endpoint" type="button">Copiar endpoint</button>
+        <button id="elementar-settings-button" type="button">Configurar</button>
+      </div>
+      <div id="elementar-status" class="elementar-status" aria-live="polite"></div>
+    </section>
     <section class="formula-row"><div id="cell-address" class="cell-address">A1</div><div class="fx">fx</div><input id="formula-input" type="text" spellcheck="false" autocomplete="off" aria-label="Barra de fórmulas" placeholder="Digite um valor ou fórmula, por exemplo: =SOMA(A1:A5)"></section>
     <section class="sheet-shell"><div id="spreadsheet" class="spreadsheet" role="grid" aria-label="Planilha"></div></section>
     <footer class="statusbar"><span id="status-message">Carregando...</span><span id="selection-summary"></span><span>SuperExcel Runtime 0.2 · esparso e incremental</span></footer>
   </main>
   <dialog id="functions-dialog" class="dialog functions-dialog"><div class="dialog-header"><div><h2>30 fórmulas disponíveis</h2><p>Use ponto e vírgula <code>;</code> entre argumentos.</p></div><button class="icon-button" data-close-dialog="functions-dialog" aria-label="Fechar">×</button></div><div id="functions-list" class="functions-list"></div></dialog>
   <dialog id="open-dialog" class="dialog open-dialog"><div class="dialog-header"><div><h2>Abrir planilha</h2><p>Arquivos disponíveis nos seus projetos.</p></div><button class="icon-button" data-close-dialog="open-dialog" aria-label="Fechar">×</button></div><div id="workbooks-list" class="workbooks-list"></div></dialog>
+  <dialog id="elementar-preview-dialog" class="dialog">
+    <div class="dialog-header">
+      <div><h2>Prévia do JSON</h2><p>Este é o documento que o frontend receberá.</p></div>
+      <button class="icon-button" type="button" data-close-elementar-dialog="elementar-preview-dialog" aria-label="Fechar">×</button>
+    </div>
+    <div class="elementar-dialog-body">
+      <pre id="elementar-preview-json" class="elementar-preview-code"></pre>
+      <div class="elementar-preview-footer">
+        <span id="elementar-preview-summary" class="elementar-preview-summary"></span>
+        <button id="elementar-publish-from-preview" class="primary" type="button" onclick="document.querySelector('#elementar-publish-button').click()">Publicar esta versão</button>
+      </div>
+    </div>
+  </dialog>
+  <dialog id="elementar-settings-dialog" class="dialog">
+    <div class="dialog-header">
+      <div><h2>Configurar Elementar</h2><p>Controle o endereço e quem pode consumir o JSON publicado.</p></div>
+      <button class="icon-button" type="button" data-close-elementar-dialog="elementar-settings-dialog" aria-label="Fechar">×</button>
+    </div>
+    <div class="elementar-dialog-body">
+      <form class="elementar-settings-grid">
+        <label>Identificador do endpoint<input id="elementar-slug" maxlength="96" pattern="[a-z0-9]+(?:-[a-z0-9]+)*" required></label>
+        <label>Visibilidade<select id="elementar-visibility"><option value="private">Privada — membros autenticados</option><option value="public">Pública — acessível pelo token</option></select></label>
+        <p class="elementar-settings-help">A versão pública permite consumo por HTML hospedado em outro domínio. O endpoint privado exige a sessão do Super Excel.</p>
+        <p id="elementar-settings-error" class="elementar-inline-error"></p>
+        <div class="elementar-settings-actions">
+          <button id="elementar-settings-save" class="primary" type="submit">Salvar configurações</button>
+          <button id="elementar-rotate-token" type="button">Trocar token público</button>
+          <button id="elementar-disable" class="elementar-danger" type="button">Desativar Elementar</button>
+        </div>
+      </form>
+    </div>
+  </dialog>
   <p data-auth-error class="error-text" hidden></p>
   <script src="{{ url_for('assets_api.supabase_browser_client') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
@@ -63,6 +115,7 @@
   <script src="{{ url_for('static', filename='js/calculation/render-bridge.js') }}"></script>
   <script src="{{ url_for('static', filename='js/snapshot-manager.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sheet-bootstrap-v2.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/elementar-sheet.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance-telemetry.js') }}"></script>
 </body>
 </html>
