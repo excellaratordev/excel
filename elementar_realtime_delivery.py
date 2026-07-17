@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 
 ELEMENTAR_WATCH_RUNTIME = r"""
 <script>
@@ -15,6 +17,21 @@ window.addEventListener('focus',()=>{for(const [url,state]of watched)check(url,s
 })();
 </script>
 """.strip()
+
+
+def inject_watch_runtime(html: str) -> str:
+    if "__superexcelElementarWatchInstalled" in html:
+        return html
+    head = re.search(r"<head(?:\s[^>]*)?>", html, flags=re.IGNORECASE)
+    if head:
+        return f"{html[:head.end()]}{ELEMENTAR_WATCH_RUNTIME}{html[head.end():]}"
+    script = re.search(r"<script(?:\s[^>]*)?>", html, flags=re.IGNORECASE)
+    if script:
+        return f"{html[:script.start()]}{ELEMENTAR_WATCH_RUNTIME}{html[script.start():]}"
+    html_tag = re.search(r"<html(?:\s[^>]*)?>", html, flags=re.IGNORECASE)
+    if html_tag:
+        return f"{html[:html_tag.end()]}{ELEMENTAR_WATCH_RUNTIME}{html[html_tag.end():]}"
+    return f"{ELEMENTAR_WATCH_RUNTIME}{html}"
 
 
 def install(elementar_routes, github_sites) -> None:
@@ -37,17 +54,7 @@ def install(elementar_routes, github_sites) -> None:
         content_type = str(response.content_type or "")
         if "text/html" not in content_type:
             return response
-        html = response.get_data(as_text=True)
-        if "__superexcelElementarWatchInstalled" in html:
-            return response
-        marker = "</body>" if "</body>" in html.lower() else "</html>"
-        lower = html.lower()
-        index = lower.rfind(marker)
-        if index >= 0:
-            html = f"{html[:index]}{ELEMENTAR_WATCH_RUNTIME}{html[index:]}"
-        else:
-            html = f"{html}{ELEMENTAR_WATCH_RUNTIME}"
-        response.set_data(html)
+        response.set_data(inject_watch_runtime(response.get_data(as_text=True)))
         response.headers["Cache-Control"] = "public, max-age=5, stale-while-revalidate=15"
         return response
 
