@@ -18,7 +18,7 @@
       <span>Tentar novamente</span>
     </button>
   </main>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="{{ url_for('static', filename='vendor/supabase.js') }}"></script>
   <script src="{{ url_for('static', filename='js/auth-guard.js') }}"></script>
   <script src="{{ url_for('static', filename='js/invite.js') }}"></script>
 </body>

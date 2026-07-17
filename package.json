@@ -1,0 +1,9 @@
+{
+  "name": "super-excel-web",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Dependências web locais do Super Excel",
+  "dependencies": {
+    "@supabase/supabase-js": "2.110.7"
+  }
+}
