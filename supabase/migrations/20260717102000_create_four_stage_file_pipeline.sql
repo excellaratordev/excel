@@ -142,6 +142,88 @@ create trigger base_rows_validate_workbook
 before insert or update of workbook_id on public.base_rows
 for each row execute function public.validate_base_storage_workbook();
 
+create or replace function public.validate_elementar_config_stage()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  workbook_row public.workbooks%rowtype;
+begin
+  select * into workbook_row from public.workbooks where id = new.workbook_id;
+  if workbook_row.id is null
+     or workbook_row.file_kind is distinct from 'elementar'
+     or workbook_row.pipeline_stage is distinct from 'publication'
+     or workbook_row.project_id is distinct from new.project_id then
+    raise exception 'A configuração Elementar exige um arquivo da etapa 4 no mesmo projeto.';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists elementar_configs_validate_stage on public.elementar_configs;
+create trigger elementar_configs_validate_stage
+before insert or update of workbook_id, project_id on public.elementar_configs
+for each row execute function public.validate_elementar_config_stage();
+
+delete from public.elementar_dependencies as dependency
+using public.workbooks as source_workbook,
+      public.workbooks as target_workbook
+where source_workbook.id = dependency.source_workbook_id
+  and target_workbook.id = dependency.elementar_workbook_id
+  and (
+    source_workbook.file_kind <> 'base'
+    or source_workbook.pipeline_stage <> 'treated'
+    or target_workbook.file_kind <> 'elementar'
+    or target_workbook.pipeline_stage <> 'publication'
+    or source_workbook.project_id is distinct from target_workbook.project_id
+  );
+
+delete from public.elementar_source_snapshots as snapshot
+using public.workbooks as workbook
+where workbook.id = snapshot.source_workbook_id
+  and (
+    workbook.file_kind <> 'base'
+    or workbook.pipeline_stage <> 'treated'
+  );
+
+create or replace function public.validate_elementar_dependency_stage()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+declare
+  source_row public.workbooks%rowtype;
+  target_row public.workbooks%rowtype;
+begin
+  select * into source_row from public.workbooks where id = new.source_workbook_id;
+  select * into target_row from public.workbooks where id = new.elementar_workbook_id;
+
+  if source_row.id is null
+     or source_row.file_kind is distinct from 'base'
+     or source_row.pipeline_stage is distinct from 'treated' then
+    raise exception 'A origem Elementar deve ser uma Base 2 tratada.';
+  end if;
+
+  if target_row.id is null
+     or target_row.file_kind is distinct from 'elementar'
+     or target_row.pipeline_stage is distinct from 'publication' then
+    raise exception 'O destino deve ser uma Elementar da etapa 4.';
+  end if;
+
+  if source_row.project_id is distinct from target_row.project_id then
+    raise exception 'Base 2 e Elementar devem pertencer ao mesmo projeto.';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists elementar_dependencies_validate_stage on public.elementar_dependencies;
+create trigger elementar_dependencies_validate_stage
+before insert or update of elementar_workbook_id, source_workbook_id on public.elementar_dependencies
+for each row execute function public.validate_elementar_dependency_stage();
+
 create or replace function public.touch_base_workbooks_from_new_rows()
 returns trigger
 language plpgsql
