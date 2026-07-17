@@ -7,6 +7,7 @@ from typing import Any
 
 import backend
 import github_connector
+import github_oauth
 from app import app
 
 
@@ -91,6 +92,50 @@ def test_starts_github_app_installation(monkeypatch):
     authorization_url = response.get_json()["authorization_url"]
     assert authorization_url.startswith("https://github.com/apps/super-excel/installations/new?")
     assert "state=" in authorization_url
+
+
+def test_setup_redirects_to_user_oauth(monkeypatch):
+    monkeypatch.setenv("GITHUB_STATE_SECRET", "test-state-secret")
+    monkeypatch.setenv("GITHUB_CLIENT_ID", "client-id")
+    monkeypatch.setenv("GITHUB_OAUTH_CALLBACK_URL", "https://excel.example/github/callback")
+    monkeypatch.setattr(github_oauth, "connector_configured", lambda: True)
+    initial_state = github_connector._sign_state(
+        {
+            "project_id": 7,
+            "repository": "cliente/sistema",
+            "branch": "main",
+            "email": "usuario@gmail.com",
+        }
+    )
+
+    response = app.test_client().get(
+        f"/github/setup?installation_id=9&state={initial_state}",
+    )
+
+    assert response.status_code == 302
+    assert response.location.startswith("https://github.com/login/oauth/authorize?")
+    assert "client_id=client-id" in response.location
+    assert "redirect_uri=https%3A%2F%2Fexcel.example%2Fgithub%2Fcallback" in response.location
+
+
+def test_user_repository_must_belong_to_installation(monkeypatch):
+    monkeypatch.setattr(
+        github_connector,
+        "_github_request",
+        lambda *args, **kwargs: FakeResponse(
+            200,
+            {
+                "total_count": 2,
+                "repositories": [
+                    {"full_name": "cliente/outro"},
+                    {"full_name": "cliente/sistema"},
+                ],
+            },
+        ),
+    )
+
+    assert github_oauth._user_can_access_repository("user-token", 9, "cliente/sistema")
+    assert not github_oauth._user_can_access_repository("user-token", 9, "cliente/inexistente")
 
 
 def test_webhook_rejects_invalid_signature(monkeypatch):
