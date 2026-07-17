@@ -44,6 +44,7 @@ from roles_routes import roles_api
 from snapshot_routes import snapshot_api
 from superexcel.core.workbook_payload import compact_empty_workbook
 from telemetry_routes import telemetry_api
+from test_time_routes import test_time_api
 from treated_base_routes import treated_base_api
 from workbook_routes import workbooks_api
 
@@ -76,6 +77,7 @@ app.before_request_funcs[None] = [
     for callback in app.before_request_funcs.get(None, [])
     if callback.__name__ != "protect_materialized_treated_data"
 ]
+app.register_blueprint(test_time_api)
 app.register_blueprint(base_reference_api)
 app.register_blueprint(collaboration_api)
 app.register_blueprint(recovery_api)
