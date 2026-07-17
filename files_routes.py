@@ -36,13 +36,38 @@ def manager_data():
         if not current_folder or int(current_folder.get("project_id") or 0) != project_id:
             return jsonify({"error": "Pasta não encontrada neste projeto."}), 404
     folder_filter = "is.null" if folder_id is None else f"eq.{folder_id}"
-    folders = db("GET", "folders", params={"select": "id,name,parent_id,project_id,updated_at", "project_id": f"eq.{project_id}", "parent_id": folder_filter, "order": "name.asc"})
-    books = db("GET", "workbooks", params={"select": "id,name,folder_id,project_id,revision,created_at,updated_at,updated_by_email", "project_id": f"eq.{project_id}", "folder_id": folder_filter, "order": "name.asc"})
+    folders = db("GET", "folders", params={
+        "select": "id,name,parent_id,project_id,updated_at",
+        "project_id": f"eq.{project_id}",
+        "parent_id": folder_filter,
+        "order": "name.asc",
+    })
+    books = db("GET", "workbooks", params={
+        "select": "id,name,folder_id,project_id,revision,file_kind,pipeline_stage,created_at,updated_at,updated_by_email",
+        "project_id": f"eq.{project_id}",
+        "folder_id": folder_filter,
+        "order": "pipeline_stage.asc,name.asc",
+    })
+    dependencies = db("GET", "file_dependencies", params={
+        "select": "id,project_id,source_workbook_id,target_workbook_id,created_at",
+        "project_id": f"eq.{project_id}",
+        "order": "created_at.asc",
+    })
     if not folders.ok:
         return api_error(folders, "Erro ao listar pastas")
     if not books.ok:
-        return api_error(books, "Erro ao listar planilhas")
-    return jsonify({"project": project, "role": role, "current_folder": current_folder, "folders": folders.json(), "workbooks": books.json()})
+        return api_error(books, "Erro ao listar arquivos")
+    if not dependencies.ok:
+        return api_error(dependencies, "Erro ao listar dependências")
+    return jsonify({
+        "project": project,
+        "role": role,
+        "current_folder": current_folder,
+        "folders": folders.json(),
+        "workbooks": books.json(),
+        "dependencies": dependencies.json(),
+        "pipeline": ["source", "calculation", "treated", "publication"],
+    })
 
 
 @files_api.post("/api/folders")
@@ -66,7 +91,12 @@ def create_folder():
             return api_error(response, "Erro ao validar a pasta")
         if not parent or int(parent.get("project_id") or 0) != project_id:
             return jsonify({"error": "Pasta de destino não pertence ao projeto."}), 400
-    response = db("POST", "folders", payload={"name": name, "parent_id": parent_id, "project_id": project_id, "created_by_email": current_email()}, prefer="return=representation")
+    response = db("POST", "folders", payload={
+        "name": name,
+        "parent_id": parent_id,
+        "project_id": project_id,
+        "created_by_email": current_email(),
+    }, prefer="return=representation")
     if response.status_code == 409:
         return jsonify({"error": "Já existe uma pasta com esse nome neste local."}), 409
     return jsonify(response.json()[0]) if response.ok else api_error(response, "Erro ao criar pasta")
