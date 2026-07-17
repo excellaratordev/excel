@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 
 import requests
 from flask import Blueprint, redirect, request, url_for
@@ -88,9 +88,17 @@ def _user_can_access_repository(user_token: str, installation_id: int, repositor
         repositories = payload.get("repositories") if isinstance(payload, dict) else []
         if not isinstance(repositories, list):
             repositories = []
-        if any(str(item.get("full_name") or "").casefold() == wanted for item in repositories if isinstance(item, dict)):
+        if any(
+            str(item.get("full_name") or "").casefold() == wanted
+            for item in repositories
+            if isinstance(item, dict)
+        ):
             return True
-        total_count = int(payload.get("total_count") or len(repositories)) if isinstance(payload, dict) else len(repositories)
+        total_count = (
+            int(payload.get("total_count") or len(repositories))
+            if isinstance(payload, dict)
+            else len(repositories)
+        )
         if page * 100 >= total_count or not repositories:
             return False
         page += 1
@@ -148,17 +156,26 @@ def secure_github_callback():
 
         code = str(request.args.get("code") or "").strip()
         if not code:
-            denied = str(request.args.get("error_description") or request.args.get("error") or "").strip()
-            raise github_connector.GitHubConnectorError(denied or "A autorização do GitHub foi cancelada.")
+            denied = str(
+                request.args.get("error_description") or request.args.get("error") or ""
+            ).strip()
+            raise github_connector.GitHubConnectorError(
+                denied or "A autorização do GitHub foi cancelada."
+            )
 
         installation_id = int(state["installation_id"])
         project_id = int(state["project_id"])
         if installation_id <= 0:
             raise ValueError
 
-        project, role, role_response = get_project_role(project_id, str(state.get("email") or ""))
+        project, role, role_response = get_project_role(
+            project_id,
+            str(state.get("email") or ""),
+        )
         if role_response is not None and not role_response.ok:
-            raise github_connector.GitHubConnectorError("Não foi possível validar a permissão do projeto.")
+            raise github_connector.GitHubConnectorError(
+                "Não foi possível validar a permissão do projeto."
+            )
         if not project or ROLE_RANK.get(role or "", -1) < ROLE_RANK["admin"]:
             raise github_connector.GitHubConnectorError(
                 "Você não possui mais permissão para conectar este projeto."
@@ -183,7 +200,7 @@ def secure_github_callback():
         branch = requested_branch or str(repository_data.get("default_branch") or "main")
         github_connector._github_request(
             "GET",
-            f"/repos/{github_connector._repo_path(repository)}/branches/{github_connector.quote(branch, safe='')}",
+            f"/repos/{github_connector._repo_path(repository)}/branches/{quote(branch, safe='')}",
             token=installation_token,
         )
 
