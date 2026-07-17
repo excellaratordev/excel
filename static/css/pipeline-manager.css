@@ -1,0 +1,54 @@
+.pipeline-overview { grid-template-columns: repeat(4, minmax(150px, 1fr)); }
+.pipeline-overview .overview-card { position: relative; overflow: hidden; }
+.pipeline-overview .overview-card::after { content: ''; position: absolute; top: 50%; right: -18px; width: 36px; height: 2px; background: #cfd8e1; }
+.pipeline-overview .overview-card:last-child::after { display: none; }
+.pipeline-overview .source-tone { background: #e8f5ed; color: #147342; }
+.pipeline-overview .calculation-tone { background: #fff4d9; color: #9a6700; }
+.pipeline-overview .treated-tone { background: #e9efff; color: #3b5bbb; }
+.pipeline-overview .publication-tone { background: #f3eaff; color: #7a3ab8; }
+
+.pipeline-folders { display: flex; align-items: stretch; gap: 10px; padding: 2px 0 14px; overflow-x: auto; }
+.pipeline-folders:empty { display: none; }
+.pipeline-folders .item { min-width: 210px; max-width: 260px; }
+
+.pipeline-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 12px; align-items: start; min-width: 1030px; }
+.pipeline-lane { min-height: 370px; display: grid; grid-template-rows: auto 1fr; border: 1px solid #dfe5eb; border-radius: 14px; background: #f7f9fb; overflow: hidden; }
+.pipeline-lane[data-stage="source"] { --stage: #18864b; --stage-soft: #e8f5ed; }
+.pipeline-lane[data-stage="calculation"] { --stage: #b77900; --stage-soft: #fff4d9; }
+.pipeline-lane[data-stage="treated"] { --stage: #4665bd; --stage-soft: #e9efff; }
+.pipeline-lane[data-stage="publication"] { --stage: #7a3ab8; --stage-soft: #f3eaff; }
+.pipeline-lane-head { padding: 14px; display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; background: #fff; border-bottom: 1px solid #dfe5eb; }
+.pipeline-lane-number { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; background: var(--stage-soft); color: var(--stage); font-weight: 900; }
+.pipeline-lane-title { min-width: 0; }
+.pipeline-lane-title strong { display: block; color: #172033; }
+.pipeline-lane-title small { display: block; margin-top: 2px; color: #667085; font-size: 11px; line-height: 1.25; }
+.pipeline-lane-head button { width: 29px; height: 29px; min-height: 0; padding: 0; border: 1px solid color-mix(in srgb, var(--stage) 32%, #dfe5eb); border-radius: 8px; background: var(--stage-soft); color: var(--stage); font-size: 17px; font-weight: 800; }
+.pipeline-lane-head button:hover { border-color: var(--stage); }
+.pipeline-lane-items { min-height: 300px; display: grid; align-content: start; gap: 9px; padding: 10px; }
+.pipeline-lane .workbook-item { width: 100%; min-width: 0; margin: 0; border-left: 3px solid var(--stage); background: #fff; }
+.pipeline-lane .workbook-item .icon { color: var(--stage); }
+.pipeline-lane-empty { min-height: 110px; display: grid; place-content: center; gap: 4px; padding: 15px; border: 1px dashed #cfd8e1; border-radius: 10px; color: #7b8794; text-align: center; font-size: 12px; }
+.pipeline-lane-empty strong { color: #475467; }
+.pipeline-stage-badge { display: inline-flex; width: fit-content; margin-top: 6px; padding: 3px 7px; border-radius: 999px; background: var(--stage-soft); color: var(--stage); font-size: 10px; font-weight: 850; text-transform: uppercase; letter-spacing: .045em; }
+.pipeline-kind-detail { display: block; margin-top: 3px; color: #7b8794; font-size: 11px; }
+.pipeline-flow-note { display: flex; align-items: center; gap: 8px; color: #667085; font-size: 12px; }
+.pipeline-flow-note strong { color: #344054; }
+
+.items[data-layout="list"] .pipeline-board { grid-template-columns: 1fr; min-width: 0; }
+.items[data-layout="list"] .pipeline-lane { min-height: 0; }
+.items[data-layout="list"] .pipeline-lane-items { min-height: 80px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+
+@media (max-width: 1180px) {
+  .file-explorer { overflow-x: auto; }
+  .pipeline-overview { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+  .pipeline-overview .overview-card:nth-child(2)::after { display: none; }
+}
+
+@media (max-width: 680px) {
+  .pipeline-overview { grid-template-columns: 1fr 1fr; }
+  .pipeline-overview .overview-card::after { display: none; }
+  .pipeline-board { grid-template-columns: minmax(260px, 1fr); min-width: 0; }
+  .pipeline-lane { min-height: 0; }
+  .pipeline-lane-items { min-height: 100px; }
+  .pipeline-folders .item { min-width: 190px; }
+}
