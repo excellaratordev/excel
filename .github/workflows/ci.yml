@@ -26,6 +26,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt pytest
 
+      - name: Build local web dependencies
+        run: |
+          npm install --omit=dev
+          mkdir -p static/vendor
+          cp node_modules/@supabase/supabase-js/dist/umd/supabase.js static/vendor/supabase.js
+          test -s static/vendor/supabase.js
+
       - name: Validate Python syntax
         run: >-
           python -m compileall -q
@@ -37,6 +44,7 @@ jobs:
 
       - name: Validate JavaScript syntax
         run: |
+          node --check static/vendor/supabase.js
           node --check static/js/calculation/formula-parser.js
           node --check static/js/calculation/dependency-graph.js
           node --check static/js/calculation/function-library.js
@@ -53,6 +61,8 @@ jobs:
       - name: Run calculation runtime tests
         run: node --test tests/js/*.test.js
 
-      - name: Ensure HyperFormula is not shipped
+      - name: Ensure blocked CDNs are not shipped
         run: |
           ! grep -Rni "hyperformula" templates static/js README.md
+          ! grep -Rni "cdn.jsdelivr.net/npm/@supabase/supabase-js" templates
+          grep -Rni "vendor/supabase.js" templates
