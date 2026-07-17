@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="Organize projetos, planilhas, pastas, variáveis e acessos no Super Excel.">
+  <meta name="description" content="Organize Bases, planilhas de cálculo, Bases tratadas e Elementares no Super Excel.">
   <title>Super Excel — Arquivos</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
@@ -11,18 +11,20 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/manager-topbar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/elementar.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/roles-admin.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/pipeline-manager.css') }}">
   <style>
     .create-menu { position: relative; }
     .create-menu > summary { list-style: none; cursor: pointer; user-select: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; padding: 0 16px; border: 0; border-radius: 10px; background: var(--green, #18864b); color: #fff; font: inherit; font-weight: 700; white-space: nowrap; }
     .create-menu > summary::-webkit-details-marker { display: none; }
     .create-menu > summary::after { content: '▾'; font-size: 11px; transition: transform .16s ease; }
     .create-menu[open] > summary::after { transform: rotate(180deg); }
-    .create-menu-list { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: 210px; padding: 7px; border: 1px solid rgba(15, 23, 42, .12); border-radius: 12px; background: #fff; box-shadow: 0 16px 40px rgba(15, 23, 42, .18); }
+    .create-menu-list { position: absolute; z-index: 40; top: calc(100% + 8px); right: 0; width: 250px; padding: 7px; border: 1px solid rgba(15, 23, 42, .12); border-radius: 12px; background: #fff; box-shadow: 0 16px 40px rgba(15, 23, 42, .18); }
     .create-menu-list button { width: 100%; min-height: 40px; display: flex; align-items: center; gap: 10px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: #172033; font: inherit; text-align: left; cursor: pointer; }
     .create-menu-list button:hover, .create-menu-list button:focus-visible { background: rgba(24, 134, 75, .09); outline: none; }
     .create-menu-list button span { width: 20px; text-align: center; color: var(--green, #18864b); font-weight: 800; }
+    .create-menu-separator { height: 1px; margin: 6px 7px; background: #e4e8ed; }
     .page-heading-actions .create-menu > summary { min-height: 44px; }
-    @media (max-width: 680px) { .page-heading-actions .create-menu { width: 100%; } .page-heading-actions .create-menu > summary { width: 100%; } .create-menu-list { left: 0; right: auto; width: min(240px, 100%); } }
+    @media (max-width: 680px) { .page-heading-actions .create-menu { width: 100%; } .page-heading-actions .create-menu > summary { width: 100%; } .create-menu-list { left: 0; right: auto; width: min(270px, 100%); } }
   </style>
 </head>
 <body class="auth-pending">
@@ -48,11 +50,14 @@
 
     <div class="actions" aria-label="Ações de arquivos">
       <details class="create-menu">
-        <summary>Novo</summary>
-        <div class="create-menu-list" role="menu" aria-label="Criar novo item">
+        <summary>Novo arquivo</summary>
+        <div class="create-menu-list" role="menu" aria-label="Criar novo arquivo">
+          <button id="new-base-source" type="button" role="menuitem"><span aria-hidden="true">▤</span>Base de entrada</button>
+          <button id="new-sheet" type="button" role="menuitem"><span aria-hidden="true">▦</span>Planilha de cálculo</button>
+          <button id="new-base-treated" type="button" role="menuitem"><span aria-hidden="true">▥</span>Base 2 tratada</button>
+          <button id="new-elementar" type="button" role="menuitem"><span aria-hidden="true">◈</span>Elementar</button>
+          <div class="create-menu-separator"></div>
           <button id="new-folder" type="button" role="menuitem"><span aria-hidden="true">▰</span>Nova pasta</button>
-          <button id="new-sheet" type="button" role="menuitem"><span aria-hidden="true">▦</span>Nova planilha</button>
-          <button id="new-elementar" type="button" role="menuitem"><span aria-hidden="true">◈</span>Novo Elementar</button>
         </div>
       </details>
     </div>
@@ -76,7 +81,7 @@
 
       <nav class="sidebar-nav" aria-label="Navegação do projeto">
         <span class="sidebar-label">Navegação</span>
-        <button class="nav active" data-view="files" type="button"><span class="nav-icon" aria-hidden="true">▦</span><span>Arquivos</span></button>
+        <button class="nav active" data-view="files" type="button"><span class="nav-icon" aria-hidden="true">⇢</span><span>Pipeline de arquivos</span></button>
         <button class="nav" data-view="variables" type="button"><span class="nav-icon" aria-hidden="true">⌁</span><span>Variáveis externas</span></button>
         <button class="nav" data-view="members" type="button"><span class="nav-icon" aria-hidden="true">◎</span><span>Membros e acessos</span></button>
         <button class="nav" data-view="roles" type="button"><span class="nav-icon" aria-hidden="true">⚿</span><span>Roles e permissões</span></button>
@@ -84,8 +89,8 @@
       </nav>
 
       <div class="sidebar-tip">
-        <span class="tip-icon" aria-hidden="true">↕</span>
-        <div><strong>Organização rápida</strong><p>Arraste planilhas e pastas para mudar a estrutura do projeto.</p></div>
+        <span class="tip-icon" aria-hidden="true">→</span>
+        <div><strong>Fluxo obrigatório</strong><p>Base → Planilhas → Base 2 → Elementar. Cada etapa possui uma responsabilidade única.</p></div>
       </div>
     </aside>
 
@@ -95,26 +100,30 @@
       <div id="files-view" class="view active">
         <header class="page-heading">
           <div>
-            <span class="eyebrow">Projeto compartilhado</span>
-            <h1>Arquivos</h1>
-            <p id="files-context">Centralize planilhas, pastas e recursos do projeto.</p>
+            <span class="eyebrow">Arquitetura do projeto</span>
+            <h1>Pipeline de arquivos</h1>
+            <p id="files-context">Dados entram por uma Base, são calculados nas planilhas, estabilizados na Base 2 e publicados pela Elementar.</p>
           </div>
           <div class="page-heading-actions">
             <details class="create-menu">
-              <summary>Novo</summary>
-              <div class="create-menu-list" role="menu" aria-label="Criar novo item">
+              <summary>Novo arquivo</summary>
+              <div class="create-menu-list" role="menu" aria-label="Criar novo arquivo">
+                <button type="button" role="menuitem" data-proxy-click="new-base-source"><span aria-hidden="true">▤</span>Base de entrada</button>
+                <button type="button" role="menuitem" data-proxy-click="new-sheet"><span aria-hidden="true">▦</span>Planilha de cálculo</button>
+                <button type="button" role="menuitem" data-proxy-click="new-base-treated"><span aria-hidden="true">▥</span>Base 2 tratada</button>
+                <button type="button" role="menuitem" data-proxy-click="new-elementar"><span aria-hidden="true">◈</span>Elementar</button>
+                <div class="create-menu-separator"></div>
                 <button type="button" role="menuitem" data-proxy-click="new-folder"><span aria-hidden="true">▰</span>Nova pasta</button>
-                <button type="button" role="menuitem" data-proxy-click="new-sheet"><span aria-hidden="true">▦</span>Nova planilha</button>
-                <button type="button" role="menuitem" data-proxy-click="new-elementar"><span aria-hidden="true">◈</span>Novo Elementar</button>
               </div>
             </details>
           </div>
         </header>
 
-        <section class="overview-grid" aria-label="Resumo dos arquivos">
-          <article class="overview-card"><span class="overview-icon folder-tone" aria-hidden="true">▰</span><div><span>Pastas nesta área</span><strong id="folder-count">0</strong></div></article>
-          <article class="overview-card"><span class="overview-icon sheet-tone" aria-hidden="true">▦</span><div><span>Planilhas nesta área</span><strong id="workbook-count">0</strong></div></article>
-          <article class="overview-card role-overview"><span class="overview-icon role-tone" aria-hidden="true">✓</span><div><span>Seu nível de acesso</span><strong id="overview-role">Conectando</strong></div></article>
+        <section class="overview-grid pipeline-overview" aria-label="Resumo do pipeline">
+          <article class="overview-card"><span class="overview-icon source-tone" aria-hidden="true">1</span><div><span>Bases de entrada</span><strong id="source-count">0</strong></div></article>
+          <article class="overview-card"><span class="overview-icon calculation-tone" aria-hidden="true">2</span><div><span>Planilhas de cálculo</span><strong id="calculation-count">0</strong></div></article>
+          <article class="overview-card"><span class="overview-icon treated-tone" aria-hidden="true">3</span><div><span>Bases tratadas</span><strong id="treated-count">0</strong></div></article>
+          <article class="overview-card"><span class="overview-icon publication-tone" aria-hidden="true">4</span><div><span>Elementares</span><strong id="publication-count">0</strong></div></article>
         </section>
 
         <section class="file-explorer">
@@ -123,25 +132,25 @@
               <button id="root-button" class="breadcrumb-home" title="Abra a raiz ou solte um item aqui" type="button"><span aria-hidden="true">⌂</span>Início</button>
               <span id="current-folder"></span>
             </div>
-            <span class="drag-hint">Arraste para reorganizar</span>
+            <span class="pipeline-flow-note"><strong>Direção permitida:</strong> Base → Planilhas → Base 2 → Elementar</span>
           </div>
 
           <div class="file-toolbar">
             <label class="search-box" for="file-search">
               <span aria-hidden="true">⌕</span>
-              <input id="file-search" type="search" placeholder="Buscar pasta ou planilha" autocomplete="off">
+              <input id="file-search" type="search" placeholder="Buscar arquivo no pipeline" autocomplete="off">
               <kbd>/</kbd>
             </label>
             <div class="file-toolbar-actions">
-              <label class="sort-control" for="file-sort"><span>Ordenar</span><select id="file-sort"><option value="type">Pastas primeiro</option><option value="name">Nome</option><option value="updated">Atualização recente</option></select></label>
+              <label class="sort-control" for="file-sort"><span>Ordenar</span><select id="file-sort"><option value="name">Nome</option><option value="updated">Atualização recente</option></select></label>
               <div class="layout-toggle" aria-label="Modo de visualização">
-                <button id="view-grid" type="button" title="Visualização em grade" aria-pressed="true">▦</button>
-                <button id="view-list" type="button" title="Visualização em lista" aria-pressed="false">☷</button>
+                <button id="view-grid" type="button" title="Quatro etapas lado a lado" aria-pressed="true">⇢</button>
+                <button id="view-list" type="button" title="Etapas em lista" aria-pressed="false">☷</button>
               </div>
             </div>
           </div>
 
-          <div class="items-heading"><strong>Conteúdo</strong><span id="visible-count">0 itens</span></div>
+          <div class="items-heading"><strong>Arquivos por etapa</strong><span id="visible-count">0 arquivos</span></div>
           <div id="items" class="items" data-layout="grid"></div>
         </section>
       </div>
@@ -228,8 +237,8 @@
 
   <dialog id="elementar-create-dialog" class="elementar-create-dialog">
     <form>
-      <div><h2>Nova planilha Elementar</h2><p>Transforme regras e intervalos de outras planilhas em um JSON pronto para o frontend.</p></div>
-      <label>Nome da planilha<input name="name" maxlength="120" value="Nova Elementar" required></label>
+      <div><h2>Nova Elementar</h2><p>Etapa final do pipeline. A Elementar publica uma Base 2 tratada como JSON para o site.</p></div>
+      <label>Nome do arquivo<input name="name" maxlength="120" value="Nova Elementar" required></label>
       <p class="elementar-inline-error" data-elementar-create-error></p>
       <div class="elementar-create-actions"><button type="button" data-elementar-cancel>Cancelar</button><button class="primary" type="submit" data-elementar-create>Criar Elementar</button></div>
     </form>
