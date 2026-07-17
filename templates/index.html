@@ -8,8 +8,11 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/auth.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='css/collaboration.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/snapshot.css') }}">
 </head>
 <body class="auth-pending sheet-loading">
+  <div id="snapshot-layer" class="snapshot-layer" hidden aria-label="Pré-visualização instantânea da planilha"></div>
+  <script src="{{ url_for('static', filename='js/snapshot-boot.js') }}"></script>
   <header class="topbar">
     <div class="brand"><span class="brand-mark">S</span><div><strong>Super Excel</strong><small>Planilha colaborativa</small></div></div>
     <input id="workbook-name" class="workbook-name" value="Minha Planilha" maxlength="120" aria-label="Nome da planilha">
@@ -57,7 +60,8 @@
   <script src="{{ url_for('static', filename='js/calculation/formula-runtime.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/runtime-bridge.js') }}"></script>
   <script src="{{ url_for('static', filename='js/calculation/render-bridge.js') }}"></script>
-  <script src="{{ url_for('static', filename='js/sheet-bootstrap.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/snapshot-manager.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/sheet-bootstrap-v2.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance-telemetry.js') }}"></script>
 </body>
 </html>
