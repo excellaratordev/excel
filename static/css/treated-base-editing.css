@@ -1,0 +1,37 @@
+/* A Base 2 continua sendo uma Base relacional editável.
+   O painel de Planilha é uma forma adicional de preencher e sincronizar dados. */
+.treated-base-workbook #add-column,
+.treated-base-workbook #add-row {
+  display: inline-flex;
+}
+
+.treated-base-workbook .base-grid-cell input,
+.treated-base-workbook .base-grid-cell select {
+  pointer-events: auto;
+  color: var(--ink);
+  background: transparent;
+}
+
+.treated-base-workbook .base-grid-cell.action button,
+.treated-base-workbook .base-grid-header-cell button {
+  display: inline-flex;
+}
+
+.treated-base-workbook .base-context > div:nth-child(1) strong::after {
+  content: " · editável";
+  color: #4f6fc7;
+  font-weight: 650;
+}
+
+@media (max-width: 640px) {
+  .treated-base-workbook .base-actions {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .treated-base-workbook #add-column,
+  .treated-base-workbook #add-row,
+  .treated-base-workbook #treated-source-mode-button {
+    min-height: 42px;
+  }
+}

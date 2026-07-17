@@ -24,10 +24,27 @@ def test_base_2_exposes_spreadsheet_source_panel() -> None:
     assert ".treated-base-workbook.treated-source-open .base-workspace" in styles
 
 
+def test_base_2_keeps_column_record_and_cell_editing() -> None:
+    template = read("templates/base.html")
+    styles = read("static/css/treated-base-editing.css")
+    app = read("app.py")
+
+    assert 'id="add-column"' in template
+    assert 'id="add-row"' in template
+    assert "treated-base-editing.css" in template
+    assert ".treated-base-workbook #add-column" in styles
+    assert ".treated-base-workbook #add-row" in styles
+    assert "display: inline-flex" in styles
+    assert "pointer-events: auto" in styles
+    assert "protect_materialized_treated_data" in app
+    assert "callback.__name__ != \"protect_materialized_treated_data\"" in app
+
+
 def test_base_2_mobile_layout_is_touch_first() -> None:
     template = read("templates/base.html")
     script = read("static/js/treated-base-panel.js")
     styles = read("static/css/treated-base.css")
+    editing_styles = read("static/css/treated-base-editing.css")
 
     assert "No celular" in template
     assert 'id="treated-source-select-mode"' in template
@@ -38,6 +55,8 @@ def test_base_2_mobile_layout_is_touch_first() -> None:
     assert "position: fixed" in styles
     assert "env(safe-area-inset-bottom)" in styles
     assert "min-height: 46px" in styles
+    assert "@media (max-width: 640px)" in editing_styles
+    assert "min-height: 42px" in editing_styles
 
 
 def test_calculation_sheet_loads_treated_base_sync_client() -> None:

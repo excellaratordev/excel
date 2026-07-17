@@ -67,6 +67,12 @@ app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
 app.register_blueprint(base_api)
 app.register_blueprint(treated_base_api)
+# A sincronização da Planilha é opcional: a Base 2 permanece editável como qualquer Base relacional.
+app.before_request_funcs[None] = [
+    callback
+    for callback in app.before_request_funcs.get(None, [])
+    if callback.__name__ != "protect_materialized_treated_data"
+]
 app.register_blueprint(base_reference_api)
 app.register_blueprint(collaboration_api)
 app.register_blueprint(recovery_api)
