@@ -91,6 +91,17 @@
       pending_operations: 0,
     };
 
+    const runtimeStats = window.SuperExcelCalculationRuntime?.getStats?.() || {};
+    for (const key of [
+      'dependency_nodes',
+      'dependency_edges',
+      'cache_bytes',
+      'cache_hit_ratio',
+      'calculation_ms',
+    ]) {
+      if (Number.isFinite(runtimeStats[key])) result[key] = runtimeStats[key];
+    }
+
     if (Number.isFinite(memory.usedJSHeapSize)) result.heap_used_bytes = memory.usedJSHeapSize;
     if (Number.isFinite(memory.totalJSHeapSize)) result.heap_total_bytes = memory.totalJSHeapSize;
     if (Number.isFinite(memory.jsHeapSizeLimit)) result.heap_limit_bytes = memory.jsHeapSizeLimit;
@@ -109,7 +120,7 @@
       const response = await fetch(`/api/workbooks/${workbookId}/telemetry`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_version: 'foundation-v1', metrics }),
+        body: JSON.stringify({ client_version: 'custom-runtime-v1', metrics }),
         keepalive: true,
       });
       if (!response.ok) {
@@ -132,6 +143,7 @@
     applyChanges(event.detail?.changes);
     scheduleSoon();
   });
+  window.addEventListener('superexcel:calculation-runtime', scheduleSoon);
   window.addEventListener('online', scheduleSoon);
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) scheduleSoon();

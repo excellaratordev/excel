@@ -19,7 +19,8 @@ O produto deve preservar a liberdade de uma planilha e evitar estruturas rígida
 7. Invalidação e recálculo devem ser seletivos.
 8. Roles são conjuntos configuráveis de capacidades.
 9. Telemetria de cálculo, renderização, colaboração e memória faz parte do núcleo.
-10. Toda migração deve manter compatibilidade até a substituição completa da camada antiga.
+10. O motor de cálculo é propriedade do projeto e não depende de engines de planilha de terceiros.
+11. Toda migração deve manter compatibilidade até a substituição completa da camada antiga.
 
 ## Estrutura-alvo do repositório
 
@@ -41,7 +42,11 @@ superexcel/
 static/js/
 ├── app/                    # Inicialização e shell
 ├── grid/                   # Renderização e virtualização
-├── calculation/            # Adaptador do motor de cálculo
+├── calculation/
+│   ├── formula-parser.js   # Tokenização, parser e AST
+│   ├── dependency-graph.js # Índice de dependências exatas e por chunks
+│   ├── function-library.js # Biblioteca de funções internas
+│   └── formula-runtime.js  # Avaliação incremental, cache e histórico
 ├── collaboration/          # Cliente otimista e outbox
 ├── telemetry/              # Coleta de RAM e latência
 └── legacy/                 # Código mantido durante a migração
@@ -53,15 +58,37 @@ A estrutura será adotada progressivamente. Arquivos antigos permanecem funciona
 
 ### 1. Modelo lógico
 
-Representa documentos, planilhas, células, intervalos, tabelas e recursos sem depender de Flask, Supabase, DOM ou HyperFormula.
+Representa documentos, planilhas, células, intervalos, tabelas e recursos sem depender de Flask, Supabase, DOM ou bibliotecas externas de planilha.
 
 ### 2. Runtime incremental
 
 Recebe uma saída solicitada, expande somente o subgrafo necessário, consulta caches, carrega os blocos ausentes e recalcula apenas nós inválidos.
 
+A execução segue:
+
+```text
+fórmula
+  ↓
+parser
+  ↓
+AST
+  ↓
+grafo de dependências
+  ↓
+invalidação seletiva
+  ↓
+avaliação sob demanda
+  ↓
+cache de resultado
+```
+
+Referências individuais são indexadas diretamente. Intervalos são registrados em buckets bidimensionais para que `A1:A5000` seja uma única relação lógica, e não cinco mil arestas independentes.
+
 ### 3. Armazenamento
 
 Deve aceitar payloads legados densos e o modelo novo esparso. A transição será feita por adaptadores e versionamento de schema.
+
+O runtime de cálculo já mantém apenas células preenchidas em seu armazenamento interno. A grade atual ainda será migrada para o mesmo modelo.
 
 ### 4. Colaboração
 
@@ -73,6 +100,8 @@ Mantém a aplicação otimista atual, separando:
 - log ordenado de operações;
 - checkpoints e recuperação por delta;
 - conflitos de valores e operações estruturais.
+
+O motor de cálculo é local e determinístico. Alterações remotas entram como operações de célula e invalidam somente as cadeias relacionadas.
 
 ### 5. Permissões
 
@@ -99,11 +128,33 @@ Cada planilha deve publicar métricas de:
 - células DOM;
 - células carregadas e preenchidas;
 - fórmulas e dependências;
+- arestas exatas e intervalos indexados;
 - cache e chunks ativos;
+- taxa de acerto do cache;
 - tempo de cálculo e renderização;
 - atraso de colaboração;
 - operações pendentes;
 - snapshots completos e recuperações por delta.
+
+## Motor de cálculo próprio
+
+O motor interno deve cumprir os seguintes contratos:
+
+- parser independente da interface;
+- AST estável e testável;
+- biblioteca de funções desacoplada;
+- grafo com dependências por célula e intervalo;
+- detecção de ciclos;
+- cálculo sob demanda;
+- cache reutilizável;
+- invalidação transitiva seletiva;
+- funções dinâmicas com saída derramada;
+- transações para alterações em lote;
+- desfazer e refazer;
+- métricas internas;
+- API compatível com futura implementação Rust/Wasm.
+
+A versão JavaScript é a implementação de referência e permite validar semântica, testes e contratos. O núcleo de alta performance poderá ser substituído por Rust/Wasm mantendo a mesma API pública.
 
 ## Modelo de dados futuro
 
@@ -140,6 +191,16 @@ O tamanho lógico da grade não implica alocação de todas as posições.
 - telemetria por planilha;
 - adaptadores para payload compacto.
 
+### Motor próprio
+
+- remoção completa do HyperFormula;
+- parser e AST internos;
+- grafo incremental por célula e intervalo;
+- biblioteca inicial de fórmulas empresariais;
+- funções dinâmicas;
+- cache, ciclos, undo e redo;
+- testes automatizados de semântica.
+
 ### Grade
 
 - armazenamento esparso no cliente;
@@ -147,12 +208,13 @@ O tamanho lógico da grade não implica alocação de todas as posições.
 - eliminação do DOM por célula possível;
 - renderização apenas de resultados alterados.
 
-### Cálculo
+### Rust/Wasm
 
-- interface abstrata para motores;
-- benchmark automatizado do HyperFormula atual;
-- runtime incremental próprio em Rust/Wasm;
-- migração gradual de fórmulas.
+- contrato binário do runtime;
+- implementação do parser e grafo em Rust;
+- buffers compactos entre interface e Wasm;
+- benchmarks comparativos com a implementação de referência;
+- substituição do núcleo sem alterar colaboração e UI.
 
 ### Colaboração
 

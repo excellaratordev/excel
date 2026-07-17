@@ -1,17 +1,20 @@
 # Super Excel
 
-Planilha web construída com **HTML, CSS, JavaScript, Flask e HyperFormula**. Funciona localmente e pode ser publicada em serviços que executem aplicações Python, como Render, Railway, Fly.io ou qualquer servidor com Docker.
+Planilha web construída com **HTML, CSS, JavaScript, Flask e um motor de cálculo incremental próprio**. Funciona localmente e pode ser publicada em serviços que executem aplicações Python, como Render, Railway, Fly.io ou qualquer servidor com Docker.
 
 ## Recursos
 
 - Grade com 60 linhas e 26 colunas.
 - Barra de fórmulas e referências A1.
-- Motor de cálculo HyperFormula 3.3.0 em português do Brasil.
+- Motor de cálculo próprio, esparso, incremental e orientado a dependências.
 - 30 fórmulas principais, incluindo `SOMA`, `SE`, `SOMASES`, `PROCX`, `FILTRO`, `ÚNICO` e `CLASSIFICAR`.
+- Recálculo seletivo somente das cadeias afetadas.
+- Dependências de intervalos indexadas por chunks, sem expandir cada célula no grafo.
+- Funções dinâmicas com saída derramada.
 - Colar intervalos copiados do Excel.
 - Desfazer e refazer.
 - Autosave no navegador.
-- Persistência no servidor usando SQLite.
+- Persistência no servidor usando Supabase.
 - Importação e exportação em JSON.
 - Execução local, Gunicorn, Render e Docker.
 
@@ -59,12 +62,6 @@ docker run --rm -p 8000:8000 super-excel
 
 O arquivo `render.yaml` já define o build, o comando de inicialização e o health check. Crie um Blueprint no Render apontando para este repositório.
 
-Para manter as planilhas após recriações do serviço, configure um disco persistente e defina:
-
-```text
-SUPER_EXCEL_DATA_DIR=/var/data
-```
-
 ## Fórmulas
 
 Use `;` como separador de argumentos e `,` como separador decimal.
@@ -78,8 +75,22 @@ Use `;` como separador de argumentos e `,` como separador decimal.
 =CLASSIFICAR(A2:D20;4;-1)
 ```
 
-`MÉDIASES`, `CONCAT`, `FILTRO`, `ÚNICO`, `CLASSIFICAR` e `TEXTO` possuem extensões registradas no HyperFormula para completar a compatibilidade solicitada. As funções dinâmicas ocupam uma área de saída na grade.
+O runtime atual é implementado dentro do próprio repositório e não depende de motores de planilha de terceiros. Sua interface foi desenhada para permitir a futura compilação do núcleo em Rust/WebAssembly sem alterar a grade, a colaboração ou o formato das operações.
 
-## Licença do HyperFormula
+## Arquitetura do motor
 
-Este projeto inicializa o HyperFormula com a chave `gpl-v3`. Ao distribuir uma aplicação incompatível com a GPLv3, avalie a licença comercial do HyperFormula.
+```text
+fórmula
+  ↓
+parser próprio
+  ↓
+AST
+  ↓
+grafo de dependências por célula e intervalo
+  ↓
+invalidação seletiva
+  ↓
+avaliação sob demanda + cache
+```
+
+Consulte `docs/ARCHITECTURE.md` e `BENCHMARK.md` para as metas oficiais.
