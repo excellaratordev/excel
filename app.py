@@ -27,6 +27,7 @@ from backend import (
     protect_api_routes,
 )
 from base_elementar_automation import install as install_base_elementar_automation
+from base_reference_routes import base_reference_api
 from base_routes import base_api
 from collaboration_routes import collaboration_api
 from elementar_automation_values import install as install_elementar_value_reuse
@@ -64,6 +65,7 @@ app.register_blueprint(projects_api)
 app.register_blueprint(files_api)
 app.register_blueprint(workbooks_api)
 app.register_blueprint(base_api)
+app.register_blueprint(base_reference_api)
 app.register_blueprint(collaboration_api)
 app.register_blueprint(recovery_api)
 app.register_blueprint(roles_api)
