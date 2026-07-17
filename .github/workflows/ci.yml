@@ -80,6 +80,7 @@ jobs:
           node --check static/js/elementar-manager.js
           node --check static/js/base-grid.js
           node --check static/js/base-reference-panel.js
+          node --check static/js/base-reference-focus-bridge.js
           node --check static/js/elementar-sheet.js
           node --check static/js/elementar-source-sync.js
           node --check static/js/elementar-auto-publish-client.js
@@ -160,6 +161,7 @@ jobs:
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
           grep -Rni "external-reference-runtime.js" templates/index.html
           grep -Rni "base-reference-panel.js" templates/index.html
+          grep -Rni "base-reference-focus-bridge.js" templates/index.html
           grep -Rni "base-reference-panel.css" templates/index.html
           grep -Rni "elementar-source-sync.js" templates/index.html
           grep -Rni "elementar-auto-publish-client.js" templates/index.html
