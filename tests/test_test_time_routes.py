@@ -1,4 +1,4 @@
-from test_time_routes import column_index, column_name, normalize_range
+from test_time_unlimited import column_index, column_name, normalize_range
 
 
 def test_test_time_column_addresses_round_trip() -> None:
@@ -18,10 +18,7 @@ def test_test_time_range_normalizes_reverse_selection() -> None:
     }
 
 
-def test_test_time_group_limit_is_enforced() -> None:
-    try:
-        normalize_range("A1", "Z500")
-    except ValueError as error:
-        assert "10.000" in str(error)
-    else:
-        raise AssertionError("A seleção acima do limite deveria ser rejeitada.")
+def test_test_time_group_has_no_cell_limit() -> None:
+    result = normalize_range("A1", "ZZ1000000")
+    assert result["reference"] == "A1:ZZ1000000"
+    assert result["cell_count"] == 702_000_000
