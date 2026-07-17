@@ -36,7 +36,7 @@ jobs:
       - name: Validate Python syntax
         run: >-
           python -m compileall -q
-          app.py backend.py projects_routes.py files_routes.py workbook_routes.py
+          app.py asset_routes.py backend.py projects_routes.py files_routes.py workbook_routes.py
           collaboration_routes.py snapshot_routes.py performance_cache.py telemetry_routes.py superexcel
 
       - name: Run backend tests
@@ -45,6 +45,9 @@ jobs:
       - name: Validate JavaScript syntax
         run: |
           node --check static/vendor/supabase.js
+          node --check static/js/auth-guard.js
+          node --check static/js/login.js
+          node --check static/js/auth-callback.js
           node --check static/js/calculation/formula-parser.js
           node --check static/js/calculation/dependency-graph.js
           node --check static/js/calculation/function-library.js
@@ -63,9 +66,10 @@ jobs:
       - name: Run calculation runtime tests
         run: node --test tests/js/*.test.js
 
-      - name: Ensure blocked CDNs are not shipped
+      - name: Ensure browser assets are same-origin
         run: |
           ! grep -Rni "hyperformula" templates static/js README.md
           ! grep -Rni "cdn.jsdelivr.net/npm/@supabase/supabase-js" templates
-          grep -Rni "vendor/supabase.js" templates
+          ! grep -Rni "static/vendor/supabase.js" templates
+          grep -Rni "assets_api.supabase_browser_client" templates
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
