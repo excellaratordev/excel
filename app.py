@@ -10,6 +10,7 @@ from performance_cache import install as install_performance_cache
 install_performance_cache(backend)
 install_capabilities(backend)
 
+import base_routes
 import elementar_automation_routes
 import elementar_routes
 import github_sites
@@ -27,6 +28,7 @@ from backend import (
     protect_api_routes,
 )
 from base_elementar_automation import install as install_base_elementar_automation
+from base_formula_policy import install as install_base_formula_policy
 from base_reference_routes import base_reference_api
 from base_routes import base_api
 from collaboration_routes import collaboration_api
@@ -49,6 +51,7 @@ from workbook_routes import workbooks_api
 MAX_WORKBOOK_BYTES = 5 * 1024 * 1024
 
 workbook_routes.empty_workbook = compact_empty_workbook
+install_base_formula_policy(base_routes)
 install_elementar_value_reuse(elementar_automation_routes)
 elementar_routes.MAX_SOURCE_ROW = 5000
 elementar_routes.MAX_SOURCE_CELLS = 100_000
