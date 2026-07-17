@@ -88,8 +88,10 @@ def normalize_refs(value):
         key = str(item.get("key", "")).strip()
         name = str(item.get("workbook_name", "")).strip()
         address = str(item.get("range", "")).strip().upper()
-        if not key or key in keys or not name or not RANGE_RE.fullmatch(address):
+        if not key or not name or not RANGE_RE.fullmatch(address):
             return None, f"Declaração inválida: {key or 'sem nome'}."
+        if key in keys:
+            return None, f"O elemento {key} foi declarado mais de uma vez."
         keys.add(key)
         output.append({"key": key, "workbook_name": name, "range": address, "cell": str(item.get("cell", ""))})
     return output, None
