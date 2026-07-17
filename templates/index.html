@@ -53,14 +53,14 @@
     <section id="elementar-panel" class="elementar-panel" hidden aria-label="Publicação Elementar">
       <div>
         <h2>◈ Saída Elementar</h2>
-        <p>Declare uma propriedade por célula: <code>pedidos='Planilha de Pedidos'!A1:D100</code>. O JSON ao vivo aparece à direita e é recalculado automaticamente.</p>
+        <p>Declare uma propriedade por célula: <code>pedidos='Planilha de Pedidos'!A1:D100</code>. O JSON ao vivo aparece à direita e é publicado automaticamente quando o conteúdo muda.</p>
       </div>
       <div class="elementar-endpoint-block">
         <div class="elementar-endpoint-label">Endpoint <span id="elementar-version" class="elementar-version">Não publicada</span></div>
         <span id="elementar-endpoint" class="elementar-endpoint"></span>
       </div>
       <div class="elementar-actions">
-        <button id="elementar-publish-button" class="primary" type="button" disabled>Publicar</button>
+        <button id="elementar-publish-button" class="primary" type="button" disabled>Publicar agora</button>
         <button id="elementar-copy-endpoint" type="button">Copiar endpoint</button>
         <button id="elementar-settings-button" type="button">Configurar</button>
       </div>
@@ -141,6 +141,8 @@
   <script src="{{ url_for('static', filename='js/grid/interaction.js') }}"></script>
   <script src="{{ url_for('static', filename='js/sheet-bootstrap-v2.js') }}"></script>
   <script src="{{ url_for('static', filename='js/formula-glossary.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/elementar-source-sync.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/elementar-auto-publish-client.js') }}"></script>
   <script src="{{ url_for('static', filename='js/elementar-sheet.js') }}"></script>
   <script src="{{ url_for('static', filename='js/performance-telemetry.js') }}"></script>
 </body>

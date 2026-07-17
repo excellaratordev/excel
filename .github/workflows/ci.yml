@@ -48,7 +48,8 @@ jobs:
           app.py asset_routes.py backend.py capability_backend.py projects_routes.py files_routes.py
           workbook_routes.py collaboration_routes.py recovery_routes.py roles_routes.py snapshot_routes.py
           performance_cache.py telemetry_routes.py github_connector.py github_oauth.py github_sites.py
-          elementar_routes.py superexcel
+          elementar_routes.py elementar_automation_routes.py elementar_automation_values.py
+          elementar_realtime_delivery.py superexcel
 
       - name: Run backend and architecture tests
         run: pytest -q
@@ -64,6 +65,8 @@ jobs:
           node --check static/js/github-connector.js
           node --check static/js/elementar-manager.js
           node --check static/js/elementar-sheet.js
+          node --check static/js/elementar-source-sync.js
+          node --check static/js/elementar-auto-publish-client.js
           node --check static/js/formula-glossary.js
           node --check static/js/calculation/formula-parser.js
           node --check static/js/calculation/dependency-graph.js
@@ -116,10 +119,14 @@ jobs:
           test -s supabase/migrations/20260717022658_architecture_completion.sql
           test -s supabase/migrations/20260717061000_harden_architecture_tables.sql
           test -s supabase/migrations/20260717070000_publish_github_html_subdomains.sql
+          test -s supabase/migrations/20260717081500_elementar_automatic_publication.sql
           grep -q "create table if not exists public.project_roles" supabase/migrations/20260717022658_architecture_completion.sql
           grep -q "enable row level security" supabase/migrations/20260717061000_harden_architecture_tables.sql
           grep -q "github_connections_site_slug_uidx" supabase/migrations/20260717070000_publish_github_html_subdomains.sql
           grep -q "github_template_files_site_path_idx" supabase/migrations/20260717070000_publish_github_html_subdomains.sql
+          grep -q "create table if not exists public.elementar_dependencies" supabase/migrations/20260717081500_elementar_automatic_publication.sql
+          grep -q "create table if not exists public.elementar_source_snapshots" supabase/migrations/20260717081500_elementar_automatic_publication.sql
+          grep -q "last_payload_hash" supabase/migrations/20260717081500_elementar_automatic_publication.sql
 
       - name: Ensure browser assets are same-origin
         run: |
@@ -130,6 +137,8 @@ jobs:
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
           grep -Rni "logical-library.js" templates/index.html
           grep -Rni "logical-localization-ptbr.js" templates/index.html
+          grep -Rni "elementar-source-sync.js" templates/index.html
+          grep -Rni "elementar-auto-publish-client.js" templates/index.html
 
       - name: Publish benchmark evidence
         uses: actions/upload-artifact@v4

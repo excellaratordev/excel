@@ -33,7 +33,7 @@
     const runtime = activeRuntime;
     if (!runtime?.consumeAffectedCells) return;
 
-    const rendered = new Set();
+    const rendered = new Map();
     for (let round = 0; round < 4; round += 1) {
       const affected = runtime.consumeAffectedCells();
       if (!affected.length) break;
@@ -43,7 +43,7 @@
         const col = Number(coordinate.col);
         const key = `${row}:${col}`;
         if (rendered.has(key)) continue;
-        rendered.add(key);
+        rendered.set(key, { row, col });
 
         const target = document.querySelector(`#spreadsheet .cell[data-row="${row}"][data-col="${col}"]`);
         if (!target || target.classList.contains('editing')) continue;
@@ -55,7 +55,10 @@
 
     if (rendered.size) {
       window.dispatchEvent(new CustomEvent('superexcel:rendered', {
-        detail: { cells: rendered.size },
+        detail: {
+          cells: rendered.size,
+          coordinates: [...rendered.values()],
+        },
       }));
     }
   }
@@ -66,15 +69,33 @@
     requestAnimationFrame(renderAffected);
   }
 
-  function install(runtime) {
+  function activate(runtime) {
     activeRuntime = runtime;
     window.SuperExcelActiveRuntime = runtime;
+  }
+
+  function install(runtime) {
+    if (!activeRuntime) activate(runtime);
+
     for (const methodName of ['setCellContents', 'resumeEvaluation', 'undo', 'redo']) {
       const original = runtime[methodName]?.bind(runtime);
       if (!original) continue;
       runtime[methodName] = (...args) => {
         const result = original(...args);
-        scheduleRender();
+        if (runtime === activeRuntime) scheduleRender();
+        return result;
+      };
+    }
+
+    const originalDestroy = runtime.destroy?.bind(runtime);
+    if (originalDestroy) {
+      runtime.destroy = (...args) => {
+        const wasActive = runtime === activeRuntime;
+        const result = originalDestroy(...args);
+        if (wasActive) {
+          activeRuntime = null;
+          if (window.SuperExcelActiveRuntime === runtime) window.SuperExcelActiveRuntime = null;
+        }
         return result;
       };
     }
