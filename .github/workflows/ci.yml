@@ -70,6 +70,7 @@ jobs:
           node --check static/js/calculation/formula-catalog.js
           node --check static/js/calculation/formula-runtime.js
           node --check static/js/calculation/logical-library.js
+          node --check static/js/calculation/logical-localization-ptbr.js
           node --check static/js/calculation/enterprise-kernel.js
           node --check static/js/calculation/runtime-bridge.js
           node --check static/js/calculation/render-bridge.js
@@ -124,6 +125,7 @@ jobs:
           grep -Rni "assets_api.supabase_browser_client" templates
           grep -Rni "sheet-bootstrap-v2.js" templates/index.html
           grep -Rni "logical-library.js" templates/index.html
+          grep -Rni "logical-localization-ptbr.js" templates/index.html
 
       - name: Publish benchmark evidence
         uses: actions/upload-artifact@v4
