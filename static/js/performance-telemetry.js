@@ -251,12 +251,12 @@
   };
 
   function startMemoryMonitor() {
-    updateMemoryDisplay();
     window.setInterval(() => {
       if (!document.hidden) updateMemoryDisplay();
     }, MEMORY_DISPLAY_INTERVAL_MS);
   }
 
+  updateMemoryDisplay();
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(startMemoryMonitor, { timeout: 2500 });
   } else {
