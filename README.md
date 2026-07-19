@@ -34,7 +34,7 @@ O projeto já possui:
 ## O que ainda não está pronto
 
 - O motor de fórmulas autoritativo continua em JavaScript. O crate Rust/Wasm atual é apenas um experimento de ABI e memória; ele não calcula fórmulas, não mantém estado de planilha e não está conectado ao caminho de produção.
-- A estrutura do repositório permanece em migração e mantém camadas de compatibilidade, incluindo `app.js`, `app-v2.js` e `app-v3.js`.
+- O frontend da Planilha possui um único caminho de produção: `templates/index.html` carrega `sheet-bootstrap-v2.js`, que inicializa `app-v3.js`.
 - O payload suporta dimensões lógicas grandes, porém alguns fluxos atuais trabalham com limites menores, especialmente 5.000 linhas por 300 colunas.
 - Não existe importador nativo de XLSX/XLSM no código atual.
 - O conector GitHub é somente leitura, limitado a HTML e a uma conexão por projeto.
