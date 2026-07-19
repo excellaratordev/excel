@@ -6,7 +6,9 @@ use std::slice;
 use std::str;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-pub const ABI_VERSION: u32 = 2;
+mod workbook;
+
+pub const ABI_VERSION: u32 = 3;
 const MAX_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RANGE_CELLS: usize = 4096;
 static LAST_RESULT_LEN: AtomicUsize = AtomicUsize::new(0);
