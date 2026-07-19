@@ -1,0 +1,35 @@
+name: Apply stateful Rust Wasm docs
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  apply-docs:
+    if: github.head_ref == 'engine/rust-wasm-stateful-workbook-v2'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: engine/rust-wasm-stateful-workbook-v2
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Apply verified documentation replacements
+        run: python scripts/update_stateful_wasm_docs.py
+      - name: Commit documentation
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/CURRENT_STATUS.md docs/ARCHITECTURE.md
+          if git diff --cached --quiet; then
+            echo "No documentation changes"
+            exit 0
+          fi
+          git commit -m "docs(wasm): describe stateful graph and cache"
+          git pull --rebase origin engine/rust-wasm-stateful-workbook-v2
+          git push origin HEAD:engine/rust-wasm-stateful-workbook-v2
