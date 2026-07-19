@@ -9,3 +9,4 @@ data/*.db-*
 .pytest_cache/
 node_modules/
 static/vendor/supabase.js
+wasm-engine/target/

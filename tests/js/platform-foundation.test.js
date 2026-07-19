@@ -30,4 +30,4 @@ test('simulação R1-R5 não perde operações e usa recuperação por delta', (
   assert.equal(result.scenarios.R5.snapshot_required, false);
 });
 
-test('contrato Wasm começa na ABI 1', () => assert.equal(ABI_VERSION, 1));
+test('contrato Wasm funcional usa ABI 2', () => assert.equal(ABI_VERSION, 2));
