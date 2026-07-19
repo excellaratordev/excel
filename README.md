@@ -1,26 +1,146 @@
 # Super Excel
 
-Planilha web construída com **HTML, CSS, JavaScript, Flask e um motor de cálculo incremental próprio**. Funciona localmente e pode ser publicada em serviços que executem aplicações Python, como Render, Railway, Fly.io ou qualquer servidor com Docker.
+Plataforma web multiusuário para organizar dados, regras de negócio e publicação de aplicações empresariais usando um pipeline de quatro etapas:
 
-## Recursos
+```text
+Base -> Planilha -> Base 2 -> Elementar
+entrada   cálculo    tratado   publicação
+```
 
-- Grade com 60 linhas e 26 colunas.
-- Barra de fórmulas e referências A1.
-- Motor de cálculo próprio, esparso, incremental e orientado a dependências.
-- 30 fórmulas principais, incluindo `SOMA`, `SE`, `SOMASES`, `PROCX`, `FILTRO`, `ÚNICO` e `CLASSIFICAR`.
-- Recálculo seletivo somente das cadeias afetadas.
-- Dependências de intervalos indexadas por chunks, sem expandir cada célula no grafo.
-- Funções dinâmicas com saída derramada.
-- Colar intervalos copiados do Excel.
-- Desfazer e refazer.
-- Autosave no navegador.
-- Persistência no servidor usando Supabase.
-- Importação e exportação em JSON.
-- Planilhas Elementar para publicar regras e intervalos calculados como APIs JSON versionadas.
-- Conector GitHub para espelhar automaticamente `templates/**/*.html` após push ou merge.
-- Execução local, Gunicorn, Render e Docker.
+A aplicação usa **Flask**, **Supabase**, **HTML/CSS/JavaScript**, um **motor de fórmulas próprio** e um contrato inicial em **Rust/WebAssembly**.
+
+> O retrato técnico completo e as limitações atuais estão em [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). As metas futuras permanecem separadas em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`BENCHMARK.md`](BENCHMARK.md).
+
+## Estado atual
+
+O projeto já possui:
+
+- autenticação exclusivamente com Google por Supabase Auth;
+- projetos, pastas, membros, roles e capacidades configuráveis;
+- Base de entrada relacional com colunas tipadas e registros paginados;
+- Planilha de cálculo com payload esparso e motor incremental próprio;
+- referências de fórmulas a Bases, incluindo células e intervalos;
+- Base 2 relacional, editável e opcionalmente materializada por uma Planilha;
+- fórmulas na Base 2 com texto e último valor calculado armazenados separadamente;
+- Elementar para publicar JSON versionado a partir de Bases 2;
+- atualização automática das Elementares afetadas após alterações em Bases 2 configuradas;
+- colaboração otimista, log de operações, deltas e fallback por snapshot;
+- snapshots locais/remotos para primeira pintura rápida;
+- telemetria e Test Time nas quatro etapas do pipeline;
+- conector GitHub para espelhar `templates/**/*.html`;
+- hospedagem isolada dos HTMLs sincronizados por prévia ou subdomínio;
+- CI com testes Python, JavaScript, benchmarks e compilação Wasm.
+
+## O que ainda não está pronto
+
+- O motor de fórmulas autoritativo continua em JavaScript. O crate Rust/Wasm atual fornece ABI, memória e validação básica de operações, mas ainda não calcula fórmulas.
+- A estrutura do repositório permanece em migração e mantém camadas de compatibilidade, incluindo `app.js`, `app-v2.js` e `app-v3.js`.
+- O payload suporta dimensões lógicas grandes, porém alguns fluxos atuais trabalham com limites menores, especialmente 5.000 linhas por 300 colunas.
+- Não existe importador nativo de XLSX/XLSM no código atual.
+- O conector GitHub é somente leitura, limitado a HTML e a uma conexão por projeto.
+- As metas finais de latência, RAM e concorrência de `BENCHMARK.md` ainda não possuem comprovação de produção publicada no repositório.
+
+## Pipeline de arquivos
+
+### 1. Base
+
+Camada relacional de entrada, persistida em `base_columns` e `base_rows`.
+
+- Tipos: texto, número, booleano, data, data/hora e JSON.
+- Valores iniciados por `=` são armazenados literalmente.
+- A Base de entrada não executa fórmulas.
+
+### 2. Planilha
+
+Camada de cálculo e regras de negócio.
+
+- Payload versão 2 esparso.
+- Parser, AST, grafo de dependências e cache próprios.
+- Recálculo seletivo das cadeias afetadas.
+- Funções dinâmicas e saída derramada.
+- Biblioteca de fórmulas em pt-BR com aliases em inglês.
+- Referências externas a Bases:
+
+```excel
+='Clientes'!A1
+=SOMA('Pedidos'!D2:D100)
+```
+
+### 3. Base 2
+
+Camada relacional tratada.
+
+- Permanece editável manualmente.
+- Pode ser vinculada opcionalmente a um intervalo de uma Planilha.
+- Materializa resultados calculados em colunas e registros.
+- Pode armazenar fórmulas próprias e referências diretas a Planilhas.
+- O último valor calculado é persistido para consumo da Elementar.
+
+### 4. Elementar
+
+Camada de publicação.
+
+- Consome somente Bases 2 do mesmo projeto.
+- Converte célula, linha, coluna ou tabela em JSON.
+- Publica versões imutáveis.
+- Fornece endpoint privado ou público com token.
+- Usa ETag e registra dependências por intervalo.
+
+Consulte [`docs/FILE_PIPELINE.md`](docs/FILE_PIPELINE.md) e [`docs/ELEMENTAR_WORKBOOKS.md`](docs/ELEMENTAR_WORKBOOKS.md).
+
+## Motor de fórmulas
+
+O runtime de produção está em `static/js/calculation/` e não depende de motores externos de planilha.
+
+```text
+fórmula
+  ↓
+parser próprio
+  ↓
+AST
+  ↓
+grafo de dependências locais e externas
+  ↓
+invalidação seletiva
+  ↓
+avaliação sob demanda + cache
+```
+
+Exemplos:
+
+```excel
+=SOMA(A1:A10)
+=SE(B2>=1000;"Meta atingida";"Abaixo da meta")
+=SOMASES(E2:E20;D2:D20;"Pago";C2:C20;"Fortaleza")
+=PROCX(A2;F2:F20;H2:H20;"Não encontrado")
+=ÚNICO(B2:B20)
+=CLASSIFICAR(A2:D20;4;-1)
+```
+
+Use `;` como separador de argumentos e `,` como separador decimal.
+
+## Rust/WebAssembly
+
+O diretório `wasm-engine/` contém a fundação atual:
+
+- ABI versão 1;
+- alocação e desalocação de memória;
+- validação de envelopes de operações;
+- testes Rust;
+- build para `wasm32-unknown-unknown` na CI.
+
+Ele ainda não substitui o runtime JavaScript. A fronteira está documentada em [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).
 
 ## Executar localmente
+
+### Requisitos
+
+- Python 3.12 recomendado;
+- Node.js 22 recomendado;
+- projeto Supabase com as migrations de `supabase/migrations/` aplicadas;
+- login Google habilitado no Supabase Auth.
+
+### Instalação
 
 ```bash
 python -m venv .venv
@@ -31,7 +151,9 @@ Windows PowerShell:
 ```powershell
 .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-python app.py
+npm install --omit=dev
+New-Item -ItemType Directory -Force static/vendor | Out-Null
+Copy-Item node_modules/@supabase/supabase-js/dist/umd/supabase.js static/vendor/supabase.js
 ```
 
 Linux/macOS:
@@ -39,38 +161,51 @@ Linux/macOS:
 ```bash
 source .venv/bin/activate
 pip install -r requirements.txt
+npm install --omit=dev
+mkdir -p static/vendor
+cp node_modules/@supabase/supabase-js/dist/umd/supabase.js static/vendor/supabase.js
+```
+
+Configure o ambiente:
+
+```text
+SUPABASE_URL=
+SUPABASE_SECRET_KEY=
+SUPABASE_PUBLISHABLE_KEY=
+```
+
+Inicie:
+
+```bash
 python app.py
 ```
 
 Abra `http://localhost:5000`.
 
-## Executar como servidor de produção
+## Produção
+
+Gunicorn:
 
 ```bash
-pip install -r requirements.txt
 gunicorn --bind 0.0.0.0:8000 app:app
 ```
 
-Abra `http://localhost:8000`.
-
-## Executar com Docker
+Docker:
 
 ```bash
 docker build -t super-excel .
-docker run --rm -p 8000:8000 super-excel
+docker run --rm -p 8000:8000 --env-file .env super-excel
 ```
 
-## Publicar no Render
+Render:
 
-O arquivo `render.yaml` já define o build, o comando de inicialização e o health check. Crie um Blueprint no Render apontando para este repositório.
+O `render.yaml` instala as dependências Python e web, copia o cliente Supabase para `static/vendor`, inicia o Gunicorn e usa `/api/health` como health check.
 
 ## Conector GitHub
 
-A integração usa um GitHub App com acesso de leitura ao conteúdo do repositório. Ela não armazena tokens pessoais do cliente e confirma por OAuth que o usuário realmente possui acesso à instalação e ao repositório escolhidos.
+A integração usa GitHub App, confirmação OAuth e tokens temporários de instalação. Ela importa somente arquivos HTML UTF-8 dentro de pastas `templates`.
 
-Após a instalação, o Super Excel faz uma importação inicial e passa a reagir aos webhooks de `push`. Um merge na branch monitorada também gera um `push`.
-
-Configure as variáveis:
+Variáveis principais:
 
 ```text
 GITHUB_APP_ID=
@@ -83,53 +218,36 @@ GITHUB_CLIENT_SECRET=
 GITHUB_OAUTH_CALLBACK_URL=https://SEU-DOMINIO/github/callback
 ```
 
-No GitHub App, use `/github/setup` como Setup URL, `/github/callback` como Callback URL e `/webhooks/github` como Webhook URL.
+Use `/github/setup` como Setup URL, `/github/callback` como Callback URL e `/webhooks/github` como Webhook URL.
 
-Aplique a migration `supabase/migrations/20260717033000_create_github_template_connector.sql` e consulte `docs/GITHUB_TEMPLATE_CONNECTOR.md`.
+Consulte:
 
-## Planilhas Elementar
+- [`docs/GITHUB_TEMPLATE_CONNECTOR.md`](docs/GITHUB_TEMPLATE_CONNECTOR.md);
+- [`docs/GITHUB_HTML_SUBDOMAINS.md`](docs/GITHUB_HTML_SUBDOMAINS.md).
 
-Uma Elementar transforma intervalos de outras planilhas em um JSON publicado para o frontend:
+## Testes e validação
 
-```text
-pedidos='Planilha de Pedidos'!A1:D100
-empresa='Configurações'!B2
-dashboard.indicadores='Indicadores'!B2:F2
+A CI oficial utiliza Python 3.12, Node.js 22 e Rust estável.
+
+Comandos principais:
+
+```bash
+pip install -r requirements.txt pytest
+pytest -q
+node --test tests/js/*.test.js
+node benchmarks/calculation-benchmarks.js --profile ci
+node benchmarks/logical-benchmarks.js --profile ci
+node benchmarks/collaboration-simulator.js
+cargo test --manifest-path wasm-engine/Cargo.toml
+cargo build --manifest-path wasm-engine/Cargo.toml --target wasm32-unknown-unknown --release
 ```
 
-Uma célula gera um valor, uma linha ou coluna gera uma lista e uma tabela com cabeçalhos gera uma lista de objetos. A prévia é calculada no navegador pelo mesmo runtime da planilha; a publicação cria uma versão imutável acessível por endpoint privado ou público.
+## Documentação
 
-Aplique a migration `supabase/migrations/20260717050000_create_elementar_workbooks.sql` e consulte `docs/ELEMENTAR_WORKBOOKS.md`.
-
-## Fórmulas
-
-Use `;` como separador de argumentos e `,` como separador decimal.
-
-```excel
-=SOMA(A1:A10)
-=SE(B2>=1000;"Meta atingida";"Abaixo da meta")
-=SOMASES(E2:E20;D2:D20;"Pago";C2:C20;"Fortaleza")
-=PROCX(A2;F2:F20;H2:H20;"Não encontrado")
-=ÚNICO(B2:B20)
-=CLASSIFICAR(A2:D20;4;-1)
-```
-
-O runtime atual é implementado dentro do próprio repositório e não depende de motores de planilha de terceiros. Sua interface foi desenhada para permitir a futura compilação do núcleo em Rust/WebAssembly sem alterar a grade, a colaboração ou o formato das operações.
-
-## Arquitetura do motor
-
-```text
-fórmula
-  ↓
-parser próprio
-  ↓
-AST
-  ↓
-grafo de dependências por célula e intervalo
-  ↓
-invalidação seletiva
-  ↓
-avaliação sob demanda + cache
-```
-
-Consulte `docs/ARCHITECTURE.md` e `BENCHMARK.md` para as metas oficiais.
+- [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md): realidade atual do projeto;
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md): arquitetura atual, transição e alvo;
+- [`docs/FILE_PIPELINE.md`](docs/FILE_PIPELINE.md): contrato Base -> Planilha -> Base 2 -> Elementar;
+- [`docs/ELEMENTAR_WORKBOOKS.md`](docs/ELEMENTAR_WORKBOOKS.md): publicação JSON;
+- [`docs/LOGICAL_ENGINE.md`](docs/LOGICAL_ENGINE.md): motor lógico;
+- [`BENCHMARK.md`](BENCHMARK.md): metas oficiais;
+- [`docs/BENCHMARK-RUNBOOK.md`](docs/BENCHMARK-RUNBOOK.md): execução de benchmarks.
