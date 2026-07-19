@@ -15,3 +15,13 @@ if "mod workbook;" not in source:
     source = source.replace(marker, marker + "\nmod workbook;\n", 1)
 
 path.write_text(source, encoding="utf-8")
+
+workbook_path = Path("wasm-engine/src/workbook.rs")
+workbook = workbook_path.read_text(encoding="utf-8")
+invalid = 'r#"{"status":"error","value":"#ERRO!","error":"Falha ao serializar resposta."}"#'
+valid = 'r##"{"status":"error","value":"#ERRO!","error":"Falha ao serializar resposta."}"##'
+if invalid in workbook:
+    workbook = workbook.replace(invalid, valid, 1)
+elif valid not in workbook:
+    raise SystemExit("fallback JSON esperado não encontrado")
+workbook_path.write_text(workbook, encoding="utf-8")
