@@ -1,16 +1,16 @@
 # Arquitetura do Excel Empresarial
 
-Este documento separa três conceitos que não devem mais ser misturados:
+Este documento separa três conceitos:
 
 1. **arquitetura atual**: o que está implementado no repositório;
-2. **arquitetura de transição**: camadas mantidas para compatibilidade;
-3. **arquitetura-alvo**: direção que orienta futuras substituições.
+2. **arquitetura de transição**: refatorações ainda necessárias sem alterar contratos públicos;
+3. **arquitetura-alvo**: direção que orienta substituições futuras.
 
 O retrato operacional detalhado está em `docs/CURRENT_STATUS.md`. As metas mensuráveis estão em `BENCHMARK.md`.
 
 ## Visão do produto
 
-O Excel Empresarial não é apenas uma planilha. Ele é um runtime empresarial flexível cuja interface principal pode ser uma grade, mas cuja lógica combina:
+O Excel Empresarial é um runtime empresarial flexível cuja interface principal pode ser uma grade, mas cuja lógica combina:
 
 - dados relacionais;
 - planilhas esparsas;
@@ -87,31 +87,47 @@ github_oauth.py
 github_sites.py
 ```
 
-O pacote `superexcel/` já contém contratos independentes para pipeline, permissões e payloads, mas a migração dos módulos de aplicação para uma estrutura de camadas ainda não foi concluída.
+O pacote `superexcel/` contém contratos independentes para pipeline, permissões e payloads, mas a migração dos módulos de aplicação para uma estrutura completa de camadas ainda não foi concluída.
 
 ### Frontend atual
 
+A Planilha possui um único caminho de inicialização em produção:
+
 ```text
-templates/
-static/js/
-├── app-loader.js
-├── app.js
-├── app-v2.js
-├── app-v3.js
-├── grid/
-├── calculation/
-├── collab-operation*.js
-├── sheet-collaboration-v3.js
-├── snapshot-*.js
-├── base-grid.js
-├── base-reference-*.js
-├── treated-base-*.js
-├── elementar-*.js
-├── test-time.js
-└── performance-telemetry.js
+templates/index.html
+        │
+        ▼
+static/js/sheet-bootstrap-v2.js
+        │
+        ├── grid/sparse-store.js
+        ├── grid/viewport.js
+        ├── collab-operation.js
+        ├── collab-operation-store.js
+        ▼
+static/js/app-v3.js
+        │
+        ├── sheet-capabilities.js
+        └── sheet-collaboration-v3.js
 ```
 
-A coexistência de `app.js`, `app-v2.js` e `app-v3.js` é uma condição de transição, não o formato final desejado.
+Os arquivos `app.js`, `app-v2.js`, `app-loader.js` e `sheet-bootstrap.js` foram removidos. O CI valida que eles não sejam reintroduzidos nem referenciados.
+
+Outros módulos do frontend permanecem separados por responsabilidade:
+
+```text
+static/js/
+├── grid/                         # armazenamento esparso, viewport e interação
+├── calculation/                  # parser, grafo, funções e runtime
+├── collab-operation*.js          # contrato e fila de operações
+├── sheet-collaboration-v3.js     # sincronização da Planilha
+├── snapshot-*.js                 # primeira pintura e recuperação
+├── base-grid.js                  # grade relacional
+├── base-reference-*.js           # Base dentro da Planilha
+├── treated-base-*.js             # materialização e fórmulas da Base 2
+├── elementar-*.js                # publicação e prévia JSON
+├── test-time.js                  # rastreamento entre etapas
+└── performance-telemetry.js      # métricas do navegador
+```
 
 ## Pipeline arquitetural atual
 
@@ -147,7 +163,7 @@ Base de entrada -> Planilha de cálculo -> Base 2 tratada -> Elementar
 ### Elementar
 
 - consome somente Bases 2 do mesmo projeto;
-- lê intervalos necessários;
+- lê os intervalos necessários;
 - publica JSON imutável e versionado;
 - registra dependências;
 - republica saídas afetadas após mutações nas Bases 2 configuradas.
@@ -166,6 +182,7 @@ Base de entrada -> Planilha de cálculo -> Base 2 tratada -> Elementar
 10. O motor de cálculo é propriedade do projeto e não depende de engines de planilha de terceiros.
 11. Migrações devem manter compatibilidade até a substituição comprovada da camada antiga.
 12. A documentação deve diferenciar recurso implementado, recurso parcial e arquitetura-alvo.
+13. Um único caminho de bootstrap deve ser autoritativo em produção.
 
 ## Camadas atuais
 
@@ -209,7 +226,7 @@ O runtime suporta referências externas a Bases e invalida apenas as fórmulas r
 
 ### 3. Armazenamento
 
-Existem dois modelos ativos:
+Existem dois modelos ativos.
 
 #### Planilhas
 
@@ -228,7 +245,7 @@ Existem dois modelos ativos:
 
 O backend continua aceitando payloads densos antigos e os converte para o formato esparso quando necessário.
 
-O modelo lógico admite até 1.000.000 de linhas e 10.000 colunas. Isso não significa que todos os fluxos atuais operem nesses limites: colaboração, materialização e publicação ainda possuem limites menores.
+O modelo lógico admite dimensões maiores que os limites operacionais de alguns fluxos. Colaboração, materialização e publicação permanecem limitadas para proteger memória e latência.
 
 #### Bases e Base 2
 
@@ -266,46 +283,6 @@ Implementado:
 - catálogo de capacidades;
 - proteção de rotas mapeadas por capacidade;
 - fallback temporário para hierarquia de role em rotas ainda não mapeadas.
-
-Capacidades atuais incluem:
-
-```text
-project.view
-project.rename
-project.delete
-folder.create
-folder.move
-folder.delete
-workbook.create
-workbook.view
-workbook.edit
-workbook.rename
-workbook.move
-workbook.delete
-workbook.export
-sheet.create
-sheet.view
-sheet.edit
-sheet.delete
-cell.edit
-formula.edit
-format.edit
-structure.edit
-variables.view
-variables.edit
-data.import
-data.export
-history.view
-history.restore
-automation.view
-automation.edit
-automation.run
-members.view
-members.manage
-roles.view
-roles.manage
-telemetry.view
-```
 
 ### 6. Publicação e integrações
 
@@ -353,12 +330,12 @@ O runtime JavaScript atual fornece:
 
 ## Rust/WebAssembly: situação real
 
-O crate `wasm-engine/` existe e é compilado pela CI, mas seu escopo atual é limitado:
+O crate `wasm-engine/` existe e é compilado pela CI, mas seu escopo é experimental:
 
 - ABI versão 1;
 - alocação e desalocação;
-- validação simples de envelopes de operações;
-- contratos básicos de tipos de célula em Rust.
+- validação superficial de envelopes de operações;
+- contratos demonstrativos de tipos de célula em Rust.
 
 Ainda não foram migrados para Rust/Wasm:
 
@@ -383,14 +360,14 @@ Portanto, o JavaScript continua sendo a implementação de referência e de prod
 | Roles personalizadas/capacidades | Implementado parcialmente; fallback por nível ainda existe |
 | Base relacional | Implementado |
 | Planilha esparsa | Implementado |
+| Bootstrap único da Planilha | Implementado |
 | Motor próprio JavaScript | Implementado |
 | Referências Base -> Planilha | Implementado |
 | Materialização Planilha -> Base 2 | Implementado e opcional |
 | Fórmulas na Base 2 | Implementado |
 | Elementar Base 2 -> JSON | Implementado |
-| Republicação automática afetada | Implementado para dependências configuradas |
+| Republicação automática | Implementado para dependências configuradas |
 | Colaboração por operações | Implementado |
-| Recuperação por delta/snapshot | Implementado |
 | Telemetria | Implementado |
 | Test Time | Implementado |
 | GitHub App e sincronização HTML | Implementado |
@@ -423,21 +400,21 @@ superexcel/
 static/js/
 ├── app/                    # Inicialização e shell
 ├── grid/                   # Renderização e virtualização
-├── calculation/            # Contrato JavaScript ou ponte Wasm
+├── calculation/            # Runtime JavaScript e eventual ponte experimental
 ├── collaboration/          # Cliente otimista e outbox
-├── telemetry/              # Métricas do navegador
-└── legacy/                 # Compatibilidade temporária
+└── telemetry/              # Métricas do navegador
 ```
 
-A adoção deve ser progressiva. Arquivos antigos permanecem até que seus substitutos tenham testes, métricas e rollback.
+A adoção deve ser progressiva. Uma camada antiga só permanece quando ainda possui consumidor ativo ou contrato de compatibilidade comprovado.
 
 ## Próximas fronteiras arquiteturais
 
-### 1. Consolidar o frontend
+### 1. Modularizar `app-v3.js`
 
-- reduzir a coexistência entre `app.js`, `app-v2.js` e `app-v3.js`;
-- tornar o loader e os bridges a única entrada pública;
-- mover código legado explicitamente para uma camada de compatibilidade.
+- separar comandos, seleção, edição, persistência e integração com a grade;
+- manter `sheet-bootstrap-v2.js` como única entrada pública;
+- preservar os contratos `window.SuperExcelApp` usados por colaboração e painéis;
+- remover módulos somente depois de comprovar ausência de consumidores.
 
 ### 2. Consolidar o backend em camadas
 
@@ -449,21 +426,22 @@ A adoção deve ser progressiva. Arquivos antigos permanecem até que seus subst
 ### 3. Completar a representação intermediária
 
 - fórmulas, dependências e operações devem possuir contrato serializável comum;
-- manter semântica idêntica entre JavaScript e futuro Wasm;
-- criar testes diferenciais antes de substituir qualquer componente.
+- criar testes diferenciais antes de substituir qualquer componente;
+- manter a semântica do runtime JavaScript como referência autoritativa.
 
-### 4. Evoluir Rust/Wasm
+### 4. Avaliar Rust/Wasm com evidência
 
-Ordem recomendada:
+Ordem mínima antes de qualquer adoção:
 
-1. parser e AST equivalentes;
-2. avaliação escalar básica;
-3. grafo e invalidação;
-4. biblioteca de funções;
-5. intervalos e matrizes;
-6. benchmarks comparativos;
-7. ativação gradual por feature flag;
-8. remoção do runtime JavaScript somente após equivalência comprovada.
+1. contrato estruturado e versionado;
+2. parser e AST equivalentes;
+3. avaliação escalar básica;
+4. grafo e invalidação;
+5. biblioteca de funções;
+6. intervalos e matrizes;
+7. benchmarks comparativos;
+8. ativação gradual por feature flag;
+9. rollback para o runtime JavaScript.
 
 ### 5. Demonstrar desempenho
 
