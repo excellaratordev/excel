@@ -1,0 +1,64 @@
+name: Build stateful Rust Wasm
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-stateful-engine:
+    if: github.head_ref == 'engine/rust-wasm-stateful-workbook-v2'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout stateful engine branch
+        uses: actions/checkout@v4
+        with:
+          ref: engine/rust-wasm-stateful-workbook-v2
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configure Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          rustup component add rustfmt
+
+      - name: Apply ABI 3 module wiring
+        run: python scripts/apply_wasm_stateful_phase.py
+
+      - name: Validate stateful engine
+        run: |
+          python -m pip install pytest
+          cargo fmt --manifest-path wasm-engine/Cargo.toml
+          cargo test --manifest-path wasm-engine/Cargo.toml
+          sh scripts/build_wasm.sh
+          test -s static/wasm/superexcel_wasm_engine.wasm
+          node --check static/js/wasm/engine-contract.js
+          node --check static/js/wasm/formula-engine.js
+          node --check static/js/calculation/runtime-bridge.js
+          node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm
+          pytest -q tests/test_wasm_frontend.py
+
+      - name: Commit compiled ABI 3 engine
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add wasm-engine/src/lib.rs wasm-engine/src/workbook.rs static/wasm/superexcel_wasm_engine.wasm wasm-engine/Cargo.lock
+          if git diff --cached --quiet; then
+            echo "No generated changes"
+            exit 0
+          fi
+          git commit -m "build(wasm): compile stateful workbook ABI 3"
+          git pull --rebase origin engine/rust-wasm-stateful-workbook-v2
+          git push origin HEAD:engine/rust-wasm-stateful-workbook-v2
