@@ -17,6 +17,11 @@
     fallbacks: 0,
     mismatches: 0,
     totalMs: 0,
+    workbooksCreated: 0,
+    workbooksDestroyed: 0,
+    workbookReads: 0,
+    workbookUpdates: 0,
+    workbookFailures: 0,
   };
 
   function configuredMode() {
@@ -56,6 +61,28 @@
     return state.loadPromise;
   }
 
+  function matrixToCells(data) {
+    const cells = {};
+    const rows = Array.isArray(data) ? data : [];
+    for (let row = 0; row < rows.length; row += 1) {
+      const values = Array.isArray(rows[row]) ? rows[row] : [];
+      for (let col = 0; col < values.length; col += 1) {
+        const value = values[col];
+        if (value === null || value === undefined || value === '') continue;
+        cells[cellName(row, col)] = value;
+      }
+    }
+    return cells;
+  }
+
+  function cellName(row, col) {
+    let letters = '';
+    for (let number = Number(col) + 1; number; number = Math.floor((number - 1) / 26)) {
+      letters = String.fromCharCode(65 + ((number - 1) % 26)) + letters;
+    }
+    return `${letters}${Number(row) + 1}`;
+  }
+
   function evaluateFormula(formula, cells = {}) {
     state.evaluations += 1;
     if (!state.engine) {
@@ -73,6 +100,76 @@
       return { status: 'error', error: error?.message || String(error), value: '#ERRO!' };
     } finally {
       state.totalMs += performance.now() - started;
+    }
+  }
+
+  function createWorkbook(data) {
+    if (!state.engine) return { status: 'unavailable', error: 'Núcleo Wasm ainda não carregado.' };
+    try {
+      const result = state.engine.createWorkbook({ cells: matrixToCells(data) });
+      if (result?.status === 'ok') state.workbooksCreated += 1;
+      else state.workbookFailures += 1;
+      return result;
+    } catch (error) {
+      state.workbookFailures += 1;
+      return { status: 'error', error: error?.message || String(error), value: '#ERRO!' };
+    }
+  }
+
+  function applyWorkbook(handle, changes) {
+    if (!state.engine || !handle) return { status: 'unavailable', error: 'Workbook Wasm indisponível.' };
+    try {
+      const result = state.engine.applyWorkbook(handle, { changes });
+      if (result?.status === 'ok') state.workbookUpdates += 1;
+      else state.workbookFailures += 1;
+      return result;
+    } catch (error) {
+      state.workbookFailures += 1;
+      return { status: 'error', error: error?.message || String(error), value: '#ERRO!' };
+    }
+  }
+
+  function getWorkbookCell(handle, cell) {
+    state.evaluations += 1;
+    state.workbookReads += 1;
+    if (!state.engine || !handle) {
+      state.fallbacks += 1;
+      return { status: 'unavailable', error: 'Workbook Wasm indisponível.' };
+    }
+    const started = performance.now();
+    try {
+      const result = state.engine.getWorkbookCell(handle, cell);
+      if (result?.status === 'ok') state.successes += 1;
+      else state.fallbacks += 1;
+      return result;
+    } catch (error) {
+      state.fallbacks += 1;
+      state.workbookFailures += 1;
+      return { status: 'error', error: error?.message || String(error), value: '#ERRO!' };
+    } finally {
+      state.totalMs += performance.now() - started;
+    }
+  }
+
+  function getWorkbookStats(handle) {
+    if (!state.engine || !handle) return null;
+    try {
+      const result = state.engine.getWorkbookStats(handle);
+      return result?.status === 'ok' ? result.stats : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function destroyWorkbook(handle) {
+    if (!state.engine || !handle) return false;
+    try {
+      const destroyed = state.engine.destroyWorkbook(handle);
+      if (destroyed) state.workbooksDestroyed += 1;
+      return destroyed;
+    } catch {
+      state.workbookFailures += 1;
+      return false;
     }
   }
 
@@ -101,6 +198,11 @@
       fallbacks: state.fallbacks,
       mismatches: state.mismatches,
       average_ms: state.evaluations ? state.totalMs / state.evaluations : 0,
+      workbooks_created: state.workbooksCreated,
+      workbooks_destroyed: state.workbooksDestroyed,
+      workbook_reads: state.workbookReads,
+      workbook_updates: state.workbookUpdates,
+      workbook_failures: state.workbookFailures,
       error: state.error,
     };
   }
@@ -109,6 +211,11 @@
     ASSET_URL,
     load,
     evaluateFormula,
+    createWorkbook,
+    applyWorkbook,
+    getWorkbookCell,
+    getWorkbookStats,
+    destroyWorkbook,
     getStats,
     markMismatch,
     setMode,
