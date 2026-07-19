@@ -13,20 +13,20 @@ Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
 Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
 Downloading packaging-26.2-py3-none-any.whl (100 kB)
 Downloading pygments-2.20.0-py3-none-any.whl (1.2 MB)
-   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 23.0 MB/s  0:00:00
+   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 8.5 MB/s  0:00:00
 Installing collected packages: pygments, pluggy, packaging, iniconfig, pytest
 
 Successfully installed iniconfig-2.3.0 packaging-26.2 pluggy-1.6.0 pygments-2.20.0 pytest-9.1.1
     Updating crates.io index
  Downloading crates ...
-  Downloaded serde_core v1.0.229
-  Downloaded serde_derive v1.0.229
+  Downloaded unicode-ident v1.0.24
   Downloaded itoa v1.0.18
   Downloaded quote v1.0.47
   Downloaded zmij v1.0.23
-  Downloaded memchr v2.8.3
+  Downloaded serde_core v1.0.229
+  Downloaded serde_derive v1.0.229
   Downloaded proc-macro2 v1.0.107
-  Downloaded unicode-ident v1.0.24
+  Downloaded memchr v2.8.3
   Downloaded serde v1.0.229
   Downloaded serde_json v1.0.150
   Downloaded syn v3.0.0
@@ -35,43 +35,51 @@ Successfully installed iniconfig-2.3.0 packaging-26.2 pluggy-1.6.0 pygments-2.20
    Compiling unicode-ident v1.0.24
    Compiling serde_core v1.0.229
    Compiling zmij v1.0.23
-   Compiling serde_json v1.0.150
    Compiling serde v1.0.229
+   Compiling serde_json v1.0.150
    Compiling itoa v1.0.18
    Compiling memchr v2.8.3
    Compiling syn v3.0.0
    Compiling serde_derive v1.0.229
    Compiling superexcel-wasm-engine v0.2.0 (/home/runner/work/excel/excel/wasm-engine)
-    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.68s
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.42s
      Running unittests src/lib.rs (wasm-engine/target/debug/deps/superexcel_wasm_engine-b7c87ba22e6765ac)
 
 running 11 tests
-test tests::abi_is_version_two ... FAILED
+test tests::abi_is_version_three ... ok
 test tests::cell_contract_supports_formulas ... ok
-test tests::evaluates_lazy_if ... ok
 test tests::evaluates_operator_precedence ... ok
+test tests::evaluates_lazy_if ... ok
+test tests::reports_unsupported_functions_for_javascript_fallback ... ok
 test tests::evaluates_references_ranges_and_sum ... ok
 test tests::validates_structural_operation_envelope ... ok
 test workbook::tests::detects_cycles_without_recursing_forever ... ok
-test tests::reports_unsupported_functions_for_javascript_fallback ... ok
 test workbook::tests::keeps_unsupported_formulas_for_javascript_fallback ... ok
 test workbook::tests::preserves_unaffected_cache_entries ... ok
 test workbook::tests::recalculates_transitive_formula_chain ... ok
 
-failures:
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
----- tests::abi_is_version_two stdout ----
+   Doc-tests superexcel_wasm_engine
 
-thread 'tests::abi_is_version_two' (2959) panicked at src/lib.rs:1213:9:
-assertion `left == right` failed
-  left: 3
- right: 2
-note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+running 0 tests
 
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
 
-failures:
-    tests::abi_is_version_two
-
-test result: FAILED. 10 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
-
-error: test failed, to rerun pass `--lib`
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.24
+   Compiling quote v1.0.47
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling serde v1.0.229
+   Compiling serde_json v1.0.150
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling syn v3.0.0
+   Compiling serde_derive v1.0.229
+   Compiling superexcel-wasm-engine v0.2.0 (/home/runner/work/excel/excel/wasm-engine)
+    Finished `release` profile [optimized] target(s) in 5.57s
+Wasm gerado em /home/runner/work/excel/excel/static/wasm/superexcel_wasm_engine.wasm
+{"wasm":"ok","abi":3,"tests":12,"stateful":{"affected":["A1","B1","C1"],"cache_hits":1,"recalculations":5}}
+...                                                                      [100%]
+3 passed in 0.03s

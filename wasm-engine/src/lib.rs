@@ -1209,8 +1209,8 @@ mod tests {
     }
 
     #[test]
-    fn abi_is_version_two() {
-        assert_eq!(superexcel_abi_version(), 2);
+    fn abi_is_version_three() {
+        assert_eq!(superexcel_abi_version(), 3);
     }
 
     #[test]
