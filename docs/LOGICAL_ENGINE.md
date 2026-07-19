@@ -14,7 +14,7 @@ static/js/calculation/
 
 - `logical-library.js`: regras, funções, catálogo, comparação vetorizada e avaliação preguiçosa.
 - `logical-localization-ptbr.js`: aliases localizados que apontam para a mesma implementação, sem duplicar handlers.
-- `formula-runtime.js`: runtime incremental existente. A biblioteca lógica conecta-se ao protótipo enquanto a migração para a IR/Rust ainda não foi concluída.
+- `formula-runtime.js`: runtime incremental atual e implementação autoritativa em produção. Não existe execução lógica equivalente em Rust/Wasm neste momento.
 
 ## Garantias
 
@@ -99,12 +99,17 @@ Essas métricas permitem verificar se regras complexas estão evitando trabalho 
 - L4: seleção entre muitos casos com `PARÂMETRO`;
 - L5: roteamento seletivo de erros.
 
-## Migração estrutural
+## Rust/Wasm: hipótese futura, não migração ativa
 
-A conexão atual ao protótipo evita reescrever o runtime enquanto a biblioteca é estabilizada. Na migração para a representação intermediária e Rust/Wasm:
+A migração do motor lógico para Rust/Wasm **não foi iniciada**. O crate atual não possui representação intermediária, instruções lógicas, coerção de tipos, avaliação preguiçosa ou comparação vetorizada.
 
-1. os handlers lógicos tornam-se instruções da IR;
-2. `SE`, `E`, `OU`, `SEERRO` e equivalentes mantêm avaliação preguiçosa;
-3. comparações vetorizadas migram para buffers colunares/Wasm;
-4. o catálogo e os aliases continuam como contrato público;
-5. planilhas existentes não precisam alterar suas fórmulas.
+Uma implementação futura só poderá ser considerada depois que o contrato geral do motor estiver estável. Nesse cenário ainda hipotético:
+
+1. os handlers lógicos poderão se tornar instruções de uma representação intermediária;
+2. `SE`, `E`, `OU`, `SEERRO` e equivalentes deverão manter avaliação preguiçosa;
+3. comparações vetorizadas poderão usar buffers colunares, caso benchmarks comprovem benefício;
+4. o catálogo e os aliases deverão continuar como contrato público;
+5. planilhas existentes não poderão precisar alterar suas fórmulas;
+6. os mesmos testes de semântica deverão passar em JavaScript e Rust.
+
+Até que isso aconteça, toda a funcionalidade descrita neste documento pertence exclusivamente ao runtime JavaScript.
