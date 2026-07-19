@@ -5,7 +5,7 @@
   const workbookId = Number(root.dataset.workbookId || 0);
   const memoryDisplay = document.querySelector('#memory-usage');
   const SAMPLE_INTERVAL_MS = 60000;
-  const MEMORY_DISPLAY_INTERVAL_MS = 5000;
+  const MEMORY_DISPLAY_INTERVAL_MS = 1000;
   const DETAILED_MEMORY_REFRESH_MS = 30000;
   const MEBIBYTE = 1024 * 1024;
   const changedValues = new Map();
@@ -251,12 +251,12 @@
   };
 
   function startMemoryMonitor() {
-    updateMemoryDisplay();
     window.setInterval(() => {
       if (!document.hidden) updateMemoryDisplay();
     }, MEMORY_DISPLAY_INTERVAL_MS);
   }
 
+  updateMemoryDisplay();
   if (typeof window.requestIdleCallback === 'function') {
     window.requestIdleCallback(startMemoryMonitor, { timeout: 2500 });
   } else {

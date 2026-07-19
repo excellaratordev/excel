@@ -162,7 +162,7 @@ Limites atuais relevantes:
 
 - a implementação autoritativa permanece em JavaScript;
 - a representação intermediária comum ainda não substituiu todas as camadas;
-- o projeto contém `app.js`, `app-v2.js` e `app-v3.js` durante a transição;
+- a Planilha possui um único caminho de produção: `templates/index.html` → `sheet-bootstrap-v2.js` → `app-v3.js`;
 - o modelo esparso já existe no payload e no runtime, mas alguns fluxos ainda possuem limites menores que os máximos lógicos de 1.000.000 x 10.000;
 - não há evidência de benchmark de produção publicada no repositório que comprove as metas de excelência de `BENCHMARK.md`.
 
