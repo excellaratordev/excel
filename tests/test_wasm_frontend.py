@@ -19,9 +19,20 @@ def test_committed_wasm_asset_exists():
     assert asset.stat().st_size > 1024
 
 
-def test_rust_engine_exposes_real_formula_evaluation():
-    source = (ROOT / "wasm-engine/src/lib.rs").read_text(encoding="utf-8")
-    assert "superexcel_evaluate_formula" in source
-    assert "enum Ast" in source
-    assert "evaluate_call" in source
-    assert "SOMA" in source
+def test_rust_engine_exposes_formula_and_stateful_workbook_runtime():
+    formula_source = (ROOT / "wasm-engine/src/lib.rs").read_text(encoding="utf-8")
+    workbook_source = (ROOT / "wasm-engine/src/workbook.rs").read_text(encoding="utf-8")
+    contract = (ROOT / "static/js/wasm/engine-contract.js").read_text(encoding="utf-8")
+    bridge = (ROOT / "static/js/calculation/runtime-bridge.js").read_text(encoding="utf-8")
+
+    assert "superexcel_evaluate_formula" in formula_source
+    assert "enum Ast" in formula_source
+    assert "mod workbook;" in formula_source
+    assert "superexcel_workbook_create" in workbook_source
+    assert "reverse_dependencies" in workbook_source
+    assert "collect_affected" in workbook_source
+    assert "cache_hits" in workbook_source
+    assert "const ABI_VERSION = 3" in contract
+    assert "createWorkbook" in contract
+    assert "getWorkbookCell" in contract
+    assert "applyWorkbook" in bridge
