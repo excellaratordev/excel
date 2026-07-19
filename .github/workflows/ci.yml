@@ -126,7 +126,19 @@ jobs:
           node --check benchmarks/collaboration-simulator.js
 
       - name: Run JavaScript tests
-        run: node --test tests/js/*.test.js
+        run: |
+          mkdir -p artifacts
+          set -o pipefail
+          node --test tests/js/*.test.js 2>&1 | tee artifacts/javascript-tests.log
+
+      - name: Publish JavaScript test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: javascript-test-diagnostics
+          path: artifacts/javascript-tests.log
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Execute C1-C5 calculation benchmarks
         run: node benchmarks/calculation-benchmarks.js --profile ci --output artifacts/calculation-benchmarks.json
