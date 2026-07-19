@@ -284,14 +284,18 @@ O runtime JavaScript atual fornece parser independente da grade, AST, referênci
 
 ## Rust/WebAssembly: situação real
 
-O crate `wasm-engine/` existe e é compilado pela CI, mas seu escopo é experimental:
+O crate `wasm-engine/` é compilado pela CI e contém um núcleo experimental stateful:
 
-- ABI versão 1;
-- alocação e desalocação;
-- validação superficial de envelopes de operações;
-- contratos demonstrativos de tipos de célula em Rust.
+- ABI versão 3;
+- parser e AST em Rust;
+- avaliação de fórmulas locais suportadas;
+- workbooks identificados por handles;
+- grafo reverso de dependências por célula;
+- cache de resultados, detecção de ciclos e invalidação transitiva;
+- alterações em lote, revisão, lista de afetados e métricas;
+- integração `off`, `shadow` e `prefer` com fallback JavaScript.
 
-Ainda não foram migrados parser, AST, grafo, biblioteca de funções, cache, recálculo incremental, funções dinâmicas ou interoperabilidade completa com o runtime JavaScript. Portanto, JavaScript continua sendo a implementação de referência e de produção.
+O grafo Rust atual expande intervalos locais dentro do limite experimental e ainda não substitui funções avançadas, matrizes completas, referências externas, histórico, persistência ou colaboração. JavaScript permanece como referência geral e fallback.
 
 ## Matriz de maturidade
 
@@ -312,6 +316,7 @@ Ainda não foram migrados parser, AST, grafo, biblioteca de funções, cache, re
 | Colaboração por operações | Implementado |
 | Telemetria e Test Time | Implementado |
 | GitHub App e hospedagem HTML | Implementado |
+| Workbook Rust/Wasm local stateful | Implementado parcialmente; modo padrão ainda é `off` |
 | Motor completo Rust/Wasm | Não implementado |
 | Importação XLSX/XLSM | Não implementado |
 | Aplicação desktop/Tauri | Não implementado |
@@ -367,9 +372,9 @@ Uma camada antiga só permanece quando ainda possui consumidor ativo ou contrato
 - criar testes diferenciais antes de substituir qualquer componente;
 - manter a semântica do runtime JavaScript como referência autoritativa.
 
-### 4. Avaliar Rust/Wasm com evidência
+### 4. Expandir Rust/Wasm com evidência
 
-Qualquer adoção exige contrato estruturado, parser e AST equivalentes, avaliação escalar, grafo, biblioteca de funções, intervalos, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
+A base stateful já existe. A ampliação exige IR compartilhada, paridade semântica, funções empresariais, intervalos indexados, matrizes, referências externas, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
 
 ### 5. Demonstrar desempenho
 

@@ -7,7 +7,7 @@ Base -> Planilha -> Base 2 -> Elementar
 entrada   cálculo    tratado   publicação
 ```
 
-A aplicação usa **Flask**, **Supabase**, **HTML/CSS/JavaScript**, um **motor de fórmulas próprio** e uma primeira fatia funcional híbrida em **Rust/WebAssembly**.
+A aplicação usa **Flask**, **Supabase**, **HTML/CSS/JavaScript**, um **motor de fórmulas próprio** e um núcleo híbrido stateful em **Rust/WebAssembly** para fórmulas locais suportadas.
 
 > O retrato técnico completo e as limitações atuais estão em [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). As metas futuras permanecem separadas em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`BENCHMARK.md`](BENCHMARK.md).
 
@@ -33,7 +33,7 @@ O projeto já possui:
 
 ## O que ainda não está pronto
 
-- O grafo, cache, invalidação transitiva, funções avançadas e referências externas continuam autoritativos no runtime JavaScript. Rust/Wasm já calcula uma fatia real de fórmulas locais, mas ainda não substitui o núcleo completo.
+- Rust/Wasm já mantém workbooks locais, dependências por célula, cache e invalidação transitiva para fórmulas suportadas. Funções avançadas, intervalos grandes, matrizes completas, referências externas, histórico, persistência e colaboração continuam autoritativos no JavaScript.
 - O frontend da Planilha possui um único caminho de produção: `templates/index.html` carrega `sheet-bootstrap-v2.js`, que inicializa `app-v3.js`.
 - O payload suporta dimensões lógicas grandes, porém alguns fluxos atuais trabalham com limites menores, especialmente 5.000 linhas por 300 colunas.
 - Não existe importador nativo de XLSX/XLSM no código atual.
@@ -119,20 +119,26 @@ Exemplos:
 
 Use `;` como separador de argumentos e `,` como separador decimal.
 
-## Rust/WebAssembly — primeira fatia funcional
+## Rust/WebAssembly — workbook stateful incremental
 
-O diretório `wasm-engine/` contém um avaliador real de fórmulas locais em Rust compilado para WebAssembly. A integração é híbrida e segura: JavaScript continua disponível como fallback para qualquer recurso ainda não suportado.
+O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. JavaScript continua disponível como referência e fallback.
 
 Implementado:
 
-- ABI versão `2` com entrada e saída JSON tipadas;
+- ABI versão `3` com entrada e saída JSON tipadas;
 - parser e AST próprios em Rust;
 - números, textos, booleanos, referências A1 e intervalos locais;
 - operadores aritméticos, concatenação, percentual e comparações;
-- matrizes e broadcasting básico;
-- `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `SE`, `E`, `OU`, `NÃO`, `SEERRO`, `ABS` e `ARRED`, com aliases em inglês;
-- coleta das dependências locais utilizadas na avaliação;
-- limite de 4.096 células por intervalo avaliado pelo núcleo experimental;
+- funções básicas localizadas e aliases em inglês;
+- workbooks identificados por handles;
+- grafo reverso de dependências por célula;
+- cache de resultados e invalidação transitiva seletiva;
+- detecção de ciclos;
+- alterações em lote, revisão e lista de células afetadas;
+- métricas de cache, recálculo, atualizações e arestas;
+- espelhamento das edições feitas no runtime JavaScript;
+- reconstrução segura do espelho após undo/redo;
+- limite de 4.096 células por intervalo e 100.000 células por workbook experimental;
 - binário versionado em `static/wasm/superexcel_wasm_engine.wasm`;
 - testes Rust e execução real do módulo Wasm pelo Node na CI.
 
@@ -140,7 +146,7 @@ Modos disponíveis:
 
 - `off`: somente JavaScript, modo padrão;
 - `shadow`: JavaScript permanece autoritativo e Rust é comparado em segundo plano;
-- `prefer`: Rust calcula fórmulas suportadas e recua automaticamente para JavaScript nas demais.
+- `prefer`: células escalares suportadas são lidas do workbook Rust e recursos não suportados voltam automaticamente ao JavaScript.
 
 Exemplo:
 
@@ -151,10 +157,10 @@ Exemplo:
 
 Ainda permanecem em JavaScript:
 
-- grafo autoritativo, cache e invalidação transitiva;
 - funções empresariais avançadas e matrizes dinâmicas completas;
+- dependências de intervalos grandes com indexação especializada;
 - referências externas a Bases e Planilhas;
-- spill autoritativo, undo/redo, persistência e colaboração.
+- spill autoritativo, histórico, persistência, snapshots e colaboração.
 
 Consulte [`wasm-engine/README.md`](wasm-engine/README.md), [`docs/RUST_WASM_ROADMAP.md`](docs/RUST_WASM_ROADMAP.md) e [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).
 

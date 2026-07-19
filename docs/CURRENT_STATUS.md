@@ -9,13 +9,13 @@ O Super Excel é hoje uma aplicação web multiusuário para organizar projetos 
 - backend Flask;
 - Supabase para banco relacional, autenticação Google, RLS e recursos de tempo real;
 - frontend em HTML, CSS e JavaScript;
-- motor de fórmulas próprio, com runtime JavaScript autoritativo e uma primeira fatia híbrida em Rust/WebAssembly;
+- motor de fórmulas próprio, com runtime JavaScript de referência e workbook Rust/WebAssembly stateful para a fatia local suportada;
 - payload esparso para Planilhas;
 - Bases relacionais para entrada e saída tratada;
 - publicação JSON por arquivos Elementar;
 - conector GitHub para importar e hospedar templates HTML.
 
-O núcleo funcional está operante, mas a arquitetura ainda está em transição. Rust/WebAssembly já possui parser, AST e avaliação real de uma parte das fórmulas locais, porém grafo, cache, funções avançadas, referências externas e estado autoritativo da planilha continuam no runtime JavaScript.
+O núcleo funcional está operante, mas a arquitetura ainda está em transição. Rust/WebAssembly já possui parser, AST, workbooks locais, grafo por célula, cache e invalidação transitiva para a fatia suportada. Funções avançadas, matrizes completas, referências externas, histórico, persistência e colaboração continuam no runtime JavaScript.
 
 ## Pipeline implementado
 
@@ -62,7 +62,7 @@ Estado atual:
 - primeira pintura usando snapshot local antes das consultas remotas;
 - carregamento de painéis, referências externas e telemetria sob demanda.
 
-O runtime JavaScript em `static/js/calculation/` permanece autoritativo. O navegador pode carregar o avaliador Rust/Wasm em modo `shadow` para comparação ou `prefer` para usar Rust apenas nas fórmulas já suportadas, sempre com fallback automático.
+O runtime JavaScript em `static/js/calculation/` permanece como referência geral. O navegador pode manter um workbook Rust/Wasm stateful em modo `shadow` para comparação ou `prefer` para usar valores escalares suportados, sempre com fallback automático.
 
 ### 3. Base 2 tratada
 
@@ -157,7 +157,7 @@ Limites atuais relevantes:
 - referências externas a Bases;
 - métricas internas;
 - benchmarks C1-C5 e L1-L5 executados na CI;
-- primeira fatia funcional em Rust/Wasm para fórmulas locais.
+- workbook Rust/Wasm stateful com grafo local, cache e invalidação seletiva para fórmulas suportadas.
 
 ### Ainda em evolução
 
@@ -171,26 +171,30 @@ Limites atuais relevantes:
 
 O crate em `wasm-engine/` implementa atualmente:
 
-- ABI versão 2;
+- ABI versão 3;
 - alocação e desalocação de memória;
 - validação estrutural de envelopes JSON;
 - parser e AST próprios em Rust;
 - avaliação de números, textos, booleanos, referências A1 e intervalos locais;
 - operadores aritméticos, concatenação, percentual e comparações;
-- matrizes e broadcasting básico;
-- funções `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `SE`, `E`, `OU`, `NÃO`, `SEERRO`, `ABS` e `ARRED`, com aliases em inglês;
-- coleta de dependências locais;
+- funções básicas localizadas e aliases em inglês;
+- registro de workbooks por handles;
+- armazenamento de valores e fórmulas locais;
+- grafo reverso de dependências por célula;
+- cache, detecção de ciclos e invalidação transitiva seletiva;
+- alterações em lote, revisão e lista de afetados;
+- métricas de cache, recálculo, atualizações e arestas;
 - build para `wasm32-unknown-unknown` e execução real do binário na CI;
 - integração no navegador com modos `off`, `shadow` e `prefer`.
 
 Ainda não foram migrados para Rust/Wasm:
 
-- grafo autoritativo, cache e invalidação transitiva;
+- dependências de intervalos grandes sem expansão célula por célula;
 - referências externas a Bases e Planilhas;
 - funções empresariais avançadas e matrizes dinâmicas completas;
-- spill autoritativo, undo/redo, persistência e colaboração.
+- spill autoritativo, histórico, persistência, snapshots e colaboração.
 
-O modo padrão permanece `off`. Em `shadow`, JavaScript continua autoritativo e divergências são registradas. Em `prefer`, fórmulas suportadas usam Rust e qualquer recurso não suportado retorna ao JavaScript.
+O modo padrão permanece `off`. Em `shadow`, JavaScript continua como resultado autoritativo e divergências são registradas. Em `prefer`, células escalares suportadas usam o workbook Rust e qualquer recurso não suportado retorna ao JavaScript.
 
 ## Conector GitHub e publicação HTML
 

@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ABI_VERSION = 2;
+  const ABI_VERSION = 3;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
@@ -28,6 +28,11 @@
       'superexcel_validate_operation',
       'superexcel_evaluate_formula',
       'superexcel_last_result_len',
+      'superexcel_workbook_create',
+      'superexcel_workbook_apply',
+      'superexcel_workbook_get_cell',
+      'superexcel_workbook_stats',
+      'superexcel_workbook_destroy',
     ];
     for (const name of required) {
       if (!(name in exports)) throw new Error(`Módulo Wasm sem export obrigatório: ${name}.`);
@@ -43,35 +48,85 @@
       return { pointer, bytes };
     }
 
-    function validateOperation(operation) {
-      const { pointer, bytes } = writePayload(operation);
+    function readJsonResult(resultPointer) {
+      const resultLength = Number(exports.superexcel_last_result_len());
+      if (!resultPointer || !resultLength) throw new Error('O núcleo Wasm não retornou uma resposta.');
       try {
-        return exports.superexcel_validate_operation(pointer, bytes.length) === 1;
+        const output = decoder.decode(new Uint8Array(exports.memory.buffer, resultPointer, resultLength));
+        return JSON.parse(output);
+      } finally {
+        exports.superexcel_dealloc(resultPointer, resultLength);
+      }
+    }
+
+    function withPayload(payload, callback) {
+      const { pointer, bytes } = writePayload(payload);
+      try {
+        return callback(pointer, bytes.length);
       } finally {
         exports.superexcel_dealloc(pointer, bytes.length);
       }
+    }
+
+    function validateOperation(operation) {
+      return withPayload(operation, (pointer, length) => (
+        exports.superexcel_validate_operation(pointer, length) === 1
+      ));
     }
 
     function evaluateFormula(requestOrFormula, cells = {}) {
       const request = typeof requestOrFormula === 'string'
         ? { formula: requestOrFormula, cells }
         : requestOrFormula;
-      const { pointer, bytes } = writePayload(request);
-      let resultPointer = 0;
-      let resultLength = 0;
-      try {
-        resultPointer = exports.superexcel_evaluate_formula(pointer, bytes.length);
-        resultLength = Number(exports.superexcel_last_result_len());
-        if (!resultPointer || !resultLength) throw new Error('O núcleo Wasm não retornou uma resposta.');
-        const output = decoder.decode(new Uint8Array(exports.memory.buffer, resultPointer, resultLength));
-        return JSON.parse(output);
-      } finally {
-        exports.superexcel_dealloc(pointer, bytes.length);
-        if (resultPointer && resultLength) exports.superexcel_dealloc(resultPointer, resultLength);
-      }
+      return withPayload(request, (pointer, length) => (
+        readJsonResult(exports.superexcel_evaluate_formula(pointer, length))
+      ));
     }
 
-    return Object.freeze({ instance, exports, version, validateOperation, evaluateFormula });
+    function createWorkbook(requestOrCells = {}) {
+      const request = requestOrCells && Object.prototype.hasOwnProperty.call(requestOrCells, 'cells')
+        ? requestOrCells
+        : { cells: requestOrCells || {} };
+      return withPayload(request, (pointer, length) => (
+        readJsonResult(exports.superexcel_workbook_create(pointer, length))
+      ));
+    }
+
+    function applyWorkbook(handle, requestOrChanges = {}) {
+      const request = requestOrChanges && Object.prototype.hasOwnProperty.call(requestOrChanges, 'changes')
+        ? requestOrChanges
+        : { changes: requestOrChanges || {} };
+      return withPayload(request, (pointer, length) => (
+        readJsonResult(exports.superexcel_workbook_apply(Number(handle) || 0, pointer, length))
+      ));
+    }
+
+    function getWorkbookCell(handle, cell) {
+      return withPayload({ cell }, (pointer, length) => (
+        readJsonResult(exports.superexcel_workbook_get_cell(Number(handle) || 0, pointer, length))
+      ));
+    }
+
+    function getWorkbookStats(handle) {
+      return readJsonResult(exports.superexcel_workbook_stats(Number(handle) || 0));
+    }
+
+    function destroyWorkbook(handle) {
+      return exports.superexcel_workbook_destroy(Number(handle) || 0) === 1;
+    }
+
+    return Object.freeze({
+      instance,
+      exports,
+      version,
+      validateOperation,
+      evaluateFormula,
+      createWorkbook,
+      applyWorkbook,
+      getWorkbookCell,
+      getWorkbookStats,
+      destroyWorkbook,
+    });
   }
 
   const api = Object.freeze({ ABI_VERSION, instantiate });
