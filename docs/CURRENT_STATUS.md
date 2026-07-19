@@ -78,7 +78,7 @@ Estado atual:
 - referências diretas a Planilhas são suportadas no formato `='Nome da Planilha'!A1`;
 - o valor calculado persistido é o que segue para a Elementar.
 
-A sincronização Planilha -> Base 2 é opcional. A Base 2 não é atualmente uma camada imutável e pode combinar materialização com manutenção manual.
+A sincronização Planilha -> Base 2 é opcional. A Base 2 pode ser editada manualmente, mas uma nova materialização do vínculo exclui e recria todas as colunas e registros do destino; alterações manuais feitas nessa Base 2 podem ser sobrescritas na próxima sincronização.
 
 ### 4. Elementar
 
