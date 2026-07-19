@@ -4,9 +4,9 @@
   const root = document.documentElement;
   const workbookId = Number(root.dataset.workbookId || 0);
   const memoryDisplay = document.querySelector('#memory-usage');
-  const SAMPLE_INTERVAL_MS = 15000;
-  const MEMORY_DISPLAY_INTERVAL_MS = 1000;
-  const DETAILED_MEMORY_REFRESH_MS = 10000;
+  const SAMPLE_INTERVAL_MS = 60000;
+  const MEMORY_DISPLAY_INTERVAL_MS = 5000;
+  const DETAILED_MEMORY_REFRESH_MS = 30000;
   const MEBIBYTE = 1024 * 1024;
   const changedValues = new Map();
   let initialPayload = null;
@@ -250,10 +250,18 @@
     refresh: updateMemoryDisplay,
   };
 
-  updateMemoryDisplay();
-  window.setInterval(() => {
-    if (!document.hidden) updateMemoryDisplay();
-  }, MEMORY_DISPLAY_INTERVAL_MS);
+  function startMemoryMonitor() {
+    updateMemoryDisplay();
+    window.setInterval(() => {
+      if (!document.hidden) updateMemoryDisplay();
+    }, MEMORY_DISPLAY_INTERVAL_MS);
+  }
+
+  if (typeof window.requestIdleCallback === 'function') {
+    window.requestIdleCallback(startMemoryMonitor, { timeout: 2500 });
+  } else {
+    window.setTimeout(startMemoryMonitor, 1600);
+  }
 
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
@@ -278,7 +286,14 @@
   Promise.resolve(window.SuperExcelAuth?.ready)
     .catch(() => null)
     .finally(() => {
-      window.setTimeout(send, 2000);
-      window.setInterval(send, SAMPLE_INTERVAL_MS);
+      const startTelemetry = () => {
+        send();
+        window.setInterval(send, SAMPLE_INTERVAL_MS);
+      };
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(startTelemetry, { timeout: 10000 });
+      } else {
+        window.setTimeout(startTelemetry, 8000);
+      }
     });
 })();

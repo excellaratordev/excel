@@ -43,6 +43,8 @@
     frame: null,
     hydrateTimer: null,
     pollTimer: null,
+    sourcesLoaded: false,
+    sourceLoadPromise: null,
   };
 
   async function api(path, options = {}) {
@@ -456,7 +458,7 @@
     const references = dependencyReferences();
     try {
       if (!references.length) {
-        if (options.sync !== false) await syncDependencies([]);
+        if (options.syncEmpty && options.sync !== false) await syncDependencies([]);
         return;
       }
       const output = await api(`/api/workbooks/${workbookId}/base-reference-values`, {
@@ -480,25 +482,14 @@
     }, 420);
   }
 
-  function setPanelOpen(open) {
-    panel.hidden = !open;
-    document.body.classList.toggle('base-reference-open', open);
-    modeButton.classList.toggle('active', open);
-    modeButton.setAttribute('aria-pressed', String(open));
-    if (open) requestAnimationFrame(scheduleRender);
-  }
-
-  async function initialize() {
-    if (state.initialized) return;
-    state.initialized = true;
-    try {
+  async function ensureSourcesLoaded() {
+    if (state.sourcesLoaded) return;
+    if (state.sourceLoadPromise) return state.sourceLoadPromise;
+    state.sourceLoadPromise = (async () => {
       const output = await api(`/api/workbooks/${workbookId}/base-sources`);
       state.role = output.role || 'viewer';
       state.sources = Array.isArray(output.sources) ? output.sources : [];
-      document.body.classList.add('base-reference-workbook');
-      modeButton.hidden = false;
-      panel.hidden = false;
-      setPanelOpen(true);
+      state.sourcesLoaded = true;
       renderSourceOptions();
       if (state.sources.length) {
         const first = [...state.sources].sort((left, right) => Number(right.linked) - Number(left.linked))[0];
@@ -507,16 +498,48 @@
       } else {
         setStatus('Crie uma Base de entrada para usar referências relacionais.');
       }
-      await hydrateFormulaReferences({ sync: true });
-      state.pollTimer = setInterval(() => {
-        if (document.hidden) return;
-        hydrateFormulaReferences({ sync: false }).catch(console.debug);
-        if (!panel.hidden && state.source) loadPage(Math.floor(Math.max(0, grid.scrollTop - HEADER_HEIGHT) / ROW_HEIGHT), true).catch(console.debug);
-      }, POLL_MS);
-    } catch (error) {
-      if (error.status === 409) return;
-      console.error(error);
-      setStatus(error.message, true);
+      if (!state.pollTimer) {
+        state.pollTimer = setInterval(() => {
+          if (document.hidden) return;
+          if (dependencyReferences().length) hydrateFormulaReferences({ sync: false }).catch(console.debug);
+          if (!panel.hidden && state.source) {
+            loadPage(Math.floor(Math.max(0, grid.scrollTop - HEADER_HEIGHT) / ROW_HEIGHT), true).catch(console.debug);
+          }
+        }, POLL_MS);
+      }
+    })();
+    try {
+      await state.sourceLoadPromise;
+    } finally {
+      state.sourceLoadPromise = null;
+    }
+  }
+
+  function setPanelOpen(open) {
+    panel.hidden = !open;
+    document.body.classList.toggle('base-reference-open', open);
+    modeButton.classList.toggle('active', open);
+    modeButton.setAttribute('aria-pressed', String(open));
+    if (open) {
+      ensureSourcesLoaded()
+        .then(() => requestAnimationFrame(scheduleRender))
+        .catch(error => setStatus(error.message, true));
+    }
+  }
+
+  async function initialize() {
+    if (state.initialized) return;
+    state.initialized = true;
+    document.body.classList.add('base-reference-workbook');
+    modeButton.hidden = false;
+    panel.hidden = true;
+    setPanelOpen(false);
+
+    // Uma planilha sem referências externas não consulta Bases no carregamento.
+    if (dependencyReferences().length) {
+      hydrateFormulaReferences({ sync: true }).catch(error => {
+        if (error.status !== 409) console.debug('Referências externas adiadas.', error);
+      });
     }
   }
 

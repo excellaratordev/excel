@@ -77,21 +77,10 @@
   }
 
   async function initialize() {
-    await window.SuperExcelAuth.ready;
-
+    // Scripts estáticos e snapshot local podem aparecer antes da autenticação e
+    // das consultas remotas. A sessão continua sendo exigida para qualquer API.
+    const authReady = Promise.resolve(window.SuperExcelAuth.ready);
     let renderSnapshot = window.SuperExcelSnapshotBoot?.current || null;
-    if (workbookId) {
-      try {
-        const serverSnapshot = await fetchJson(`/api/workbooks/${workbookId}/render-snapshot`, true);
-        if (serverSnapshot?.payload) {
-          renderSnapshot = serverSnapshot.payload;
-          window.SuperExcelSnapshotBoot?.render(renderSnapshot, 'server');
-          window.SuperExcelSnapshotBoot?.saveLocal(renderSnapshot);
-        }
-      } catch (error) {
-        console.debug('Snapshot remoto indisponível; usando cache local.', error);
-      }
-    }
 
     const dimensions = renderSnapshot
       ? dimensionsFromRenderSnapshot(renderSnapshot)
@@ -103,7 +92,7 @@
       name: renderSnapshot?.name || 'Minha Planilha',
       rows: dimensions.rows,
       cols: dimensions.cols,
-      cells: [],
+      cells: Array.isArray(renderSnapshot?.cells) ? renderSnapshot.cells : [],
     };
     window.SuperExcelInitialMeta = {
       revision: 0,
@@ -122,17 +111,29 @@
     }
     await loadScript('/static/js/app-v3.js');
 
+    // Primeira pintura: o usuário já vê e pode inspecionar o conteúdo em cache.
+    document.body.classList.remove('sheet-loading');
+    window.SuperExcelSnapshotBoot?.hide?.();
+    window.dispatchEvent(new CustomEvent('superexcel:first-paint', {
+      detail: { revision: Number(renderSnapshot?.revision || 0) },
+    }));
+
     if (!workbookId) {
       await loadScript('/static/js/sheet-capabilities.js');
       hydrated(0);
       return;
     }
 
-    const [output, collaboration, access] = await Promise.all([
+    await authReady;
+    const [serverSnapshot, output, collaboration, access] = await Promise.all([
+      fetchJson(`/api/workbooks/${workbookId}/render-snapshot`, true),
       fetchJson(`/api/workbooks/${workbookId}`),
       fetchJson(`/api/workbooks/${workbookId}/collaboration-config`),
       fetchJson(`/api/workbooks/${workbookId}/capabilities`),
     ]);
+    if (serverSnapshot?.payload) {
+      window.SuperExcelSnapshotBoot?.saveLocal(serverSnapshot.payload);
+    }
 
     const workbook = output.data || {
       version: 2,

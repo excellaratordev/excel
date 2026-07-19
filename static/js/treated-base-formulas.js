@@ -309,7 +309,7 @@
     window.addEventListener('resize', () => scheduleRefresh());
     state.pollTimer = window.setInterval(() => {
       if (!document.hidden) scheduleRefresh(0, true);
-    }, 8000);
+    }, 30000);
     scheduleRefresh(0, true);
 
     window.addEventListener('pagehide', () => {
@@ -320,5 +320,14 @@
     }, { once: true });
   }
 
-  window.SuperExcelAuth?.ready?.then(initialize).catch(error => console.debug('Fórmulas da Base 2 não iniciadas.', error));
+  function scheduleBackgroundInitialize() {
+    const start = () => initialize().catch(error => console.debug('Fórmulas da Base 2 não iniciadas.', error));
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(start, { timeout: 1800 });
+    } else {
+      window.setTimeout(start, 1200);
+    }
+  }
+
+  window.SuperExcelAuth?.ready?.then(scheduleBackgroundInitialize).catch(error => console.debug('Fórmulas da Base 2 não iniciadas.', error));
 })();

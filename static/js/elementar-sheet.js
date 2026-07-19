@@ -6,7 +6,7 @@
 
   const roleRank = { viewer: 0, editor: 1, admin: 2, owner: 3 };
   const declarationPattern = /^\s*([A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_.-]*)\s*=\s*'((?:[^']|'')+)'\s*!\s*(\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)\s*$/iu;
-  const LIVE_REFRESH_MS = 8000;
+  const LIVE_REFRESH_MS = 30000;
   const LIVE_DEBOUNCE_MS = 420;
 
   const state = {
@@ -579,13 +579,24 @@
   });
   window.addEventListener('pagehide', stopLivePolling);
 
+  function waitForIdle(timeout = 1400) {
+    return new Promise(resolve => {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(resolve, { timeout });
+      } else {
+        window.setTimeout(resolve, Math.min(timeout, 900));
+      }
+    });
+  }
+
   async function initialize() {
     if (state.initialized) return;
     state.initialized = true;
     await window.SuperExcelAuth.ready;
+    await waitForHydration();
+    await waitForIdle();
     await loadConfig();
     if (!state.config?.enabled) return;
-    await waitForHydration();
     await refreshLivePreview({ announce: false });
   }
 
