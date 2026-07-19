@@ -166,10 +166,7 @@ impl Workbook {
                 "Lote excede o limite experimental de {MAX_WORKBOOK_CHANGES} alterações."
             )));
         }
-        if self
-            .raw
-            .len()
-            .saturating_add(changes.len())
+        if self.raw.len().saturating_add(changes.len())
             > MAX_WORKBOOK_CELLS.saturating_add(MAX_WORKBOOK_CHANGES)
         {
             return Err(EngineError::unsupported(
@@ -270,11 +267,7 @@ impl Workbook {
             revision: self.revision,
             stored_cells: self.raw.len(),
             formula_cells: self.formulas.len(),
-            dependency_edges: self
-                .reverse_dependencies
-                .values()
-                .map(BTreeSet::len)
-                .sum(),
+            dependency_edges: self.reverse_dependencies.values().map(BTreeSet::len).sum(),
             cache_entries: self.cache.len(),
             cache_hits: self.cache_hits,
             cache_misses: self.cache_misses,
@@ -333,7 +326,7 @@ unsafe fn parse_payload<T: for<'de> Deserialize<'de>>(
 
 fn write_json(value: JsonValue) -> *mut u8 {
     write_result(serde_json::to_string(&value).unwrap_or_else(|_| {
-        r#"{"status":"error","value":"#ERRO!","error":"Falha ao serializar resposta."}"#.into()
+        r##"{"status":"error","value":"#ERRO!","error":"Falha ao serializar resposta."}"##.into()
     }))
 }
 
@@ -356,10 +349,7 @@ fn missing_workbook(handle: u32) -> JsonValue {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn superexcel_workbook_create(
-    pointer: *const u8,
-    len: usize,
-) -> *mut u8 {
+pub unsafe extern "C" fn superexcel_workbook_create(pointer: *const u8, len: usize) -> *mut u8 {
     let request = match parse_payload::<WorkbookCreateRequest>(pointer, len) {
         Ok(request) => request,
         Err(error) => {
@@ -494,10 +484,8 @@ mod tests {
     use super::*;
 
     fn workbook(cells: JsonValue) -> Workbook {
-        Workbook::from_cells(
-            serde_json::from_value(cells).expect("mapa de células válido"),
-        )
-        .expect("workbook válido")
+        Workbook::from_cells(serde_json::from_value(cells).expect("mapa de células válido"))
+            .expect("workbook válido")
     }
 
     #[test]
@@ -507,18 +495,12 @@ mod tests {
             "B1": "=A1*3",
             "C1": "=B1+1",
         }));
-        assert_eq!(
-            workbook.evaluate_cell("C1").unwrap().1,
-            Value::Number(7.0)
-        );
+        assert_eq!(workbook.evaluate_cell("C1").unwrap().1, Value::Number(7.0));
         let affected = workbook
             .apply_changes(HashMap::from([("A1".into(), json!(4))]))
             .unwrap();
         assert_eq!(affected, vec!["A1", "B1", "C1"]);
-        assert_eq!(
-            workbook.evaluate_cell("C1").unwrap().1,
-            Value::Number(13.0)
-        );
+        assert_eq!(workbook.evaluate_cell("C1").unwrap().1, Value::Number(13.0));
     }
 
     #[test]
