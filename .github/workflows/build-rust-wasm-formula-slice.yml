@@ -1,18 +1,15 @@
 name: Build Rust Wasm formula slice
 
 on:
-  push:
-    branches:
-      - engine/rust-wasm-formula-slice-v1
-    paths:
-      - .github/workflows/build-rust-wasm-formula-slice.yml
-      - .rust_source/**
+  pull_request:
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   build-engine:
+    if: github.head_ref == 'engine/rust-wasm-formula-slice-v1'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -58,7 +55,6 @@ jobs:
               "  <script src=\"{{ url_for('static', filename='js/calculation/formula-catalog.js') }}\"></script>\n  <script src=\"{{ url_for('static', filename='js/calculation/formula-runtime.js') }}\"></script>",
               "  <script src=\"{{ url_for('static', filename='js/calculation/formula-catalog.js') }}\"></script>\n  <script src=\"{{ url_for('static', filename='js/wasm/engine-contract.js') }}\"></script>\n  <script src=\"{{ url_for('static', filename='js/wasm/formula-engine.js') }}\"></script>\n  <script src=\"{{ url_for('static', filename='js/calculation/formula-runtime.js') }}\"></script>",
           )
-
           replace_once(
               '.github/workflows/ci.yml',
               "          rustup target add wasm32-unknown-unknown\n          rustc --version",
@@ -74,17 +70,14 @@ jobs:
               "      - name: Validate Rust contract\n        run: |\n          cargo test --manifest-path wasm-engine/Cargo.toml\n          cargo build --manifest-path wasm-engine/Cargo.toml --target wasm32-unknown-unknown --release\n          test -s wasm-engine/target/wasm32-unknown-unknown/release/superexcel_wasm_engine.wasm\n",
               "      - name: Validate Rust/Wasm formula engine\n        run: |\n          cargo fmt --manifest-path wasm-engine/Cargo.toml -- --check\n          cargo test --manifest-path wasm-engine/Cargo.toml\n          sh scripts/build_wasm.sh\n          test -s static/wasm/superexcel_wasm_engine.wasm\n          node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm\n          pytest -q tests/test_wasm_frontend.py\n",
           )
-
           platform = Path('tests/js/platform-foundation.test.js')
           text = platform.read_text(encoding='utf-8')
           text = text.replace("test('contrato Wasm começa na ABI 1', () => assert.equal(ABI_VERSION, 1));", "test('contrato Wasm funcional usa ABI 2', () => assert.equal(ABI_VERSION, 2));")
           platform.write_text(text, encoding='utf-8')
-
           gitignore = Path('.gitignore')
           text = gitignore.read_text(encoding='utf-8')
           if 'wasm-engine/target/' not in text:
               gitignore.write_text(text.rstrip() + '\nwasm-engine/target/\n', encoding='utf-8')
-
           readme = Path('README.md')
           text = readme.read_text(encoding='utf-8')
           old = """## Rust/WebAssembly\n\nO diretório `wasm-engine/` contém a fundação atual:\n\n- ABI versão 1;\n- alocação e desalocação de memória;\n- validação de envelopes de operações;\n- testes Rust;\n- build para `wasm32-unknown-unknown` na CI.\n\nEle ainda não substitui o runtime JavaScript. A fronteira está documentada em [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).\n"""
