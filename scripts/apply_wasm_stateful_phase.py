@@ -14,6 +14,11 @@ if "mod workbook;" not in source:
         raise SystemExit("marcador de imports não encontrado")
     source = source.replace(marker, marker + "\nmod workbook;\n", 1)
 
+source = source.replace("fn abi_is_version_two()", "fn abi_is_version_three()")
+source = source.replace(
+    "assert_eq!(superexcel_abi_version(), 2);",
+    "assert_eq!(superexcel_abi_version(), 3);",
+)
 path.write_text(source, encoding="utf-8")
 
 workbook_path = Path("wasm-engine/src/workbook.rs")
