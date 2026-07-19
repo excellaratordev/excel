@@ -2,7 +2,7 @@
 name = "superexcel-wasm-engine"
 version = "0.1.0"
 edition = "2021"
-description = "Initial stable ABI contract for the Super Excel Rust/Wasm calculation engine"
+description = "Experimental ABI prototype for a future Super Excel Rust/Wasm calculation engine"
 license = "MIT"
 
 [lib]
