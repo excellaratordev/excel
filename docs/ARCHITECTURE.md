@@ -1,28 +1,409 @@
-# Arquitetura Final do Excel Empresarial
+# Arquitetura do Excel Empresarial
 
-Este documento define a arquitetura-alvo do produto e as fronteiras que devem orientar todas as mudanças estruturais.
+Este documento separa três conceitos que não devem mais ser misturados:
+
+1. **arquitetura atual**: o que está implementado no repositório;
+2. **arquitetura de transição**: camadas mantidas para compatibilidade;
+3. **arquitetura-alvo**: direção que orienta futuras substituições.
+
+O retrato operacional detalhado está em `docs/CURRENT_STATUS.md`. As metas mensuráveis estão em `BENCHMARK.md`.
 
 ## Visão do produto
 
-O Excel Empresarial não é apenas uma planilha. Ele é um runtime empresarial flexível cuja interface principal pode ser uma grade, mas cuja lógica interna é formada por dados esparsos, cadeias de transformação, grafos de dependência, automações, permissões e visualizações.
+O Excel Empresarial não é apenas uma planilha. Ele é um runtime empresarial flexível cuja interface principal pode ser uma grade, mas cuja lógica combina:
 
-O produto deve preservar a liberdade de uma planilha e evitar estruturas rígidas de ERP.
+- dados relacionais;
+- planilhas esparsas;
+- cadeias de transformação;
+- grafos de dependência;
+- colaboração;
+- permissões;
+- automações;
+- publicação de dados e interfaces.
+
+O produto deve preservar a liberdade de uma planilha sem transformar a regra de negócio em uma estrutura rígida de ERP.
+
+## Arquitetura atual
+
+```text
+Navegador
+├── autenticação Google / Supabase
+├── gerenciador de projetos e arquivos
+├── grade relacional de Bases
+├── grade esparsa de Planilhas
+├── motor de fórmulas JavaScript
+├── colaboração otimista e snapshots
+├── Elementar / JSON ao vivo
+├── Test Time e telemetria
+└── administração de roles e integrações
+          │
+          ▼
+Flask / Gunicorn
+├── projetos, arquivos e workbooks
+├── Bases e Base 2
+├── referências Base -> Planilha
+├── materialização Planilha -> Base 2
+├── publicação Base 2 -> Elementar
+├── colaboração, recuperação e snapshots
+├── capacidades e roles
+├── conector GitHub e hospedagem HTML
+└── telemetria e Test Time
+          │
+          ▼
+Supabase
+├── PostgreSQL / PostgREST
+├── Auth Google
+├── RLS
+├── RPCs de colaboração e materialização
+├── logs de operações e revisões
+├── tabelas relacionais de Bases
+├── publicações Elementar
+└── tabelas de integração e observabilidade
+```
+
+### Backend atual
+
+O backend continua modularizado principalmente em arquivos Python na raiz:
+
+```text
+app.py
+backend.py
+projects_routes.py
+files_routes.py
+workbook_routes.py
+base_routes.py
+base_reference_routes.py
+treated_base_routes.py
+treated_base_formula_routes.py
+elementar_routes.py
+elementar_automation_routes.py
+collaboration_routes.py
+snapshot_routes.py
+telemetry_routes.py
+test_time_routes.py
+roles_routes.py
+github_connector.py
+github_oauth.py
+github_sites.py
+```
+
+O pacote `superexcel/` já contém contratos independentes para pipeline, permissões e payloads, mas a migração dos módulos de aplicação para uma estrutura de camadas ainda não foi concluída.
+
+### Frontend atual
+
+```text
+templates/
+static/js/
+├── app-loader.js
+├── app.js
+├── app-v2.js
+├── app-v3.js
+├── grid/
+├── calculation/
+├── collab-operation*.js
+├── sheet-collaboration-v3.js
+├── snapshot-*.js
+├── base-grid.js
+├── base-reference-*.js
+├── treated-base-*.js
+├── elementar-*.js
+├── test-time.js
+└── performance-telemetry.js
+```
+
+A coexistência de `app.js`, `app-v2.js` e `app-v3.js` é uma condição de transição, não o formato final desejado.
+
+## Pipeline arquitetural atual
+
+```text
+Base de entrada -> Planilha de cálculo -> Base 2 tratada -> Elementar
+```
+
+### Base de entrada
+
+- armazenamento relacional em `base_columns` e `base_rows`;
+- colunas tipadas;
+- registros paginados;
+- valores iniciados por `=` armazenados literalmente;
+- nenhum runtime de fórmulas.
+
+### Planilha de cálculo
+
+- payload versão 2 esparso;
+- motor de fórmulas JavaScript próprio;
+- parser, AST, grafo, cache e recálculo seletivo;
+- referências a Bases;
+- colaboração por operações;
+- snapshots para renderização e recuperação.
+
+### Base 2 tratada
+
+- armazenamento relacional;
+- edição manual permitida;
+- materialização opcional de intervalo de uma Planilha;
+- fórmulas próprias armazenadas separadamente do último valor calculado;
+- resultado persistido para consumo downstream.
+
+### Elementar
+
+- consome somente Bases 2 do mesmo projeto;
+- lê intervalos necessários;
+- publica JSON imutável e versionado;
+- registra dependências;
+- republica saídas afetadas após mutações nas Bases 2 configuradas.
 
 ## Princípios obrigatórios
 
-1. A interface nunca aguarda o servidor para refletir uma alteração local.
+1. A interface não deve aguardar o servidor para refletir uma alteração local válida.
 2. A unidade de cálculo é o nó do grafo, não a planilha inteira.
-3. A unidade de armazenamento é o bloco ou registro necessário, não um arquivo monolítico.
-4. Dados vazios não devem ocupar memória proporcional ao tamanho máximo da grade.
-5. Apenas células visíveis devem possuir representação visual ativa.
+3. A unidade de armazenamento deve ser o dado necessário, não uma matriz monolítica vazia.
+4. Dados vazios não devem consumir memória proporcional ao tamanho lógico máximo.
+5. A representação visual deve se limitar ao viewport e à margem necessária.
 6. Resultados válidos devem ser reutilizados.
 7. Invalidação e recálculo devem ser seletivos.
-8. Roles são conjuntos configuráveis de capacidades.
+8. Roles devem ser conjuntos configuráveis de capacidades.
 9. Telemetria de cálculo, renderização, colaboração e memória faz parte do núcleo.
 10. O motor de cálculo é propriedade do projeto e não depende de engines de planilha de terceiros.
-11. Toda migração deve manter compatibilidade até a substituição completa da camada antiga.
+11. Migrações devem manter compatibilidade até a substituição comprovada da camada antiga.
+12. A documentação deve diferenciar recurso implementado, recurso parcial e arquitetura-alvo.
 
-## Estrutura-alvo do repositório
+## Camadas atuais
+
+### 1. Modelo lógico
+
+Implementado parcialmente em `superexcel/core/` e no runtime JavaScript.
+
+Representa:
+
+- identidades dos quatro tipos de arquivo;
+- transições permitidas;
+- payloads esparsos;
+- capacidades e roles;
+- células, intervalos e dependências no motor do navegador.
+
+Ainda existem regras duplicadas ou adaptadas em módulos de rota e frontend.
+
+### 2. Runtime incremental
+
+Implementado em JavaScript.
+
+```text
+fórmula
+  ↓
+parser
+  ↓
+AST
+  ↓
+grafo de dependências locais e externas
+  ↓
+invalidação seletiva
+  ↓
+avaliação sob demanda
+  ↓
+cache de resultado
+```
+
+Referências individuais são indexadas diretamente. Intervalos são registrados sem criar uma aresta independente para cada célula.
+
+O runtime suporta referências externas a Bases e invalida apenas as fórmulas relacionadas quando a revisão da origem muda.
+
+### 3. Armazenamento
+
+Existem dois modelos ativos:
+
+#### Planilhas
+
+```json
+{
+  "version": 2,
+  "storage": "sparse",
+  "rows": 60,
+  "cols": 26,
+  "cells": [
+    {"r": 0, "c": 0, "v": 1},
+    {"r": 0, "c": 1, "v": "=A1*2"}
+  ]
+}
+```
+
+O backend continua aceitando payloads densos antigos e os converte para o formato esparso quando necessário.
+
+O modelo lógico admite até 1.000.000 de linhas e 10.000 colunas. Isso não significa que todos os fluxos atuais operem nesses limites: colaboração, materialização e publicação ainda possuem limites menores.
+
+#### Bases e Base 2
+
+```text
+workbooks
+base_columns
+base_rows
+```
+
+As Bases não usam matriz de células. A Base 2 pode manter `formulas` e `values` separados por registro.
+
+### 4. Colaboração
+
+Implementado:
+
+- aplicação otimista local;
+- fila de operações;
+- UUID por operação;
+- sequência de cliente e revisão conhecida;
+- aplicação autoritativa por RPC;
+- log ordenado de revisões;
+- delta incremental;
+- fallback por snapshot;
+- tópico de tempo real;
+- reconciliação no frontend.
+
+Ainda não há comprovação publicada de todos os cenários e metas de concorrência definidos em `BENCHMARK.md`.
+
+### 5. Permissões
+
+Implementado:
+
+- roles padrão `viewer`, `editor`, `admin` e `owner`;
+- roles personalizadas por projeto;
+- catálogo de capacidades;
+- proteção de rotas mapeadas por capacidade;
+- fallback temporário para hierarquia de role em rotas ainda não mapeadas.
+
+Capacidades atuais incluem:
+
+```text
+project.view
+project.rename
+project.delete
+folder.create
+folder.move
+folder.delete
+workbook.create
+workbook.view
+workbook.edit
+workbook.rename
+workbook.move
+workbook.delete
+workbook.export
+sheet.create
+sheet.view
+sheet.edit
+sheet.delete
+cell.edit
+formula.edit
+format.edit
+structure.edit
+variables.view
+variables.edit
+data.import
+data.export
+history.view
+history.restore
+automation.view
+automation.edit
+automation.run
+members.view
+members.manage
+roles.view
+roles.manage
+telemetry.view
+```
+
+### 6. Publicação e integrações
+
+Implementado:
+
+- Elementar privado e público;
+- versões imutáveis e ETag;
+- dependências por intervalo;
+- atualização automática a partir de Base 2;
+- GitHub App para sincronizar HTMLs;
+- hospedagem em prévia isolada ou subdomínio wildcard.
+
+O conector GitHub é somente leitura e não representa uma plataforma de edição bidirecional.
+
+### 7. Telemetria e Test Time
+
+Implementado:
+
+- métricas de payload e memória estimada;
+- tempos de cálculo e renderização;
+- métricas de colaboração;
+- coleta adiada para reduzir interferência no carregamento;
+- sessões Test Time compartilhadas;
+- grupos de intervalos nas quatro etapas;
+- linha do tempo de eventos.
+
+## Motor de cálculo próprio
+
+A decisão arquitetural de `docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md` está implementada: HyperFormula não é dependência de produção.
+
+O runtime JavaScript atual fornece:
+
+- parser independente da grade;
+- AST;
+- referências A1 e intervalos;
+- dependências locais e externas;
+- detecção de ciclos;
+- cache;
+- invalidação seletiva;
+- funções dinâmicas;
+- alterações em lote;
+- desfazer/refazer;
+- métricas;
+- biblioteca lógica com avaliação preguiçosa.
+
+## Rust/WebAssembly: situação real
+
+O crate `wasm-engine/` existe e é compilado pela CI, mas seu escopo atual é limitado:
+
+- ABI versão 1;
+- alocação e desalocação;
+- validação simples de envelopes de operações;
+- contratos básicos de tipos de célula em Rust.
+
+Ainda não foram migrados para Rust/Wasm:
+
+- parser de fórmulas;
+- AST;
+- grafo de dependências;
+- biblioteca de funções;
+- cache;
+- recálculo incremental;
+- funções dinâmicas;
+- interoperabilidade completa com o runtime JavaScript.
+
+Portanto, o JavaScript continua sendo a implementação de referência e de produção.
+
+## Matriz de maturidade
+
+| Área | Estado atual |
+|---|---|
+| Autenticação Google | Implementado |
+| Projetos, pastas e membros | Implementado |
+| Roles padrão | Implementado |
+| Roles personalizadas/capacidades | Implementado parcialmente; fallback por nível ainda existe |
+| Base relacional | Implementado |
+| Planilha esparsa | Implementado |
+| Motor próprio JavaScript | Implementado |
+| Referências Base -> Planilha | Implementado |
+| Materialização Planilha -> Base 2 | Implementado e opcional |
+| Fórmulas na Base 2 | Implementado |
+| Elementar Base 2 -> JSON | Implementado |
+| Republicação automática afetada | Implementado para dependências configuradas |
+| Colaboração por operações | Implementado |
+| Recuperação por delta/snapshot | Implementado |
+| Telemetria | Implementado |
+| Test Time | Implementado |
+| GitHub App e sincronização HTML | Implementado |
+| Hospedagem HTML isolada | Implementado |
+| Motor completo Rust/Wasm | Não implementado |
+| Importação XLSX/XLSM | Não implementado |
+| Aplicação desktop/Tauri | Não implementado |
+| Estrutura final em camadas | Em migração |
+| Metas finais comprovadas em produção | Não comprovadas no repositório |
+
+## Arquitetura-alvo
+
+A organização desejada permanece:
 
 ```text
 superexcel/
@@ -33,210 +414,72 @@ superexcel/
 │   ├── graph/              # Grafo de dependências e invalidação
 │   ├── calculation/        # Plano e runtime de cálculo
 │   ├── storage/            # Chunks, dados esparsos e cache
-│   ├── workbook/           # Modelo lógico de documento/planilha
+│   ├── workbook/           # Modelo lógico dos arquivos
 │   └── permissions/        # Capacidades, roles e políticas
 ├── infrastructure/         # Supabase, filas, storage e adaptadores
 ├── telemetry/              # Métricas e comparação de desempenho
-└── web/                    # Integração com o frontend atual
+└── web/                    # Integração com o frontend
 
 static/js/
 ├── app/                    # Inicialização e shell
 ├── grid/                   # Renderização e virtualização
-├── calculation/
-│   ├── formula-parser.js   # Tokenização, parser e AST
-│   ├── dependency-graph.js # Índice de dependências exatas e por chunks
-│   ├── function-library.js # Biblioteca de funções internas
-│   └── formula-runtime.js  # Avaliação incremental, cache e histórico
+├── calculation/            # Contrato JavaScript ou ponte Wasm
 ├── collaboration/          # Cliente otimista e outbox
-├── telemetry/              # Coleta de RAM e latência
-└── legacy/                 # Código mantido durante a migração
+├── telemetry/              # Métricas do navegador
+└── legacy/                 # Compatibilidade temporária
 ```
 
-A estrutura será adotada progressivamente. Arquivos antigos permanecem funcionando até seus substitutos terem testes e métricas equivalentes ou superiores.
+A adoção deve ser progressiva. Arquivos antigos permanecem até que seus substitutos tenham testes, métricas e rollback.
 
-## Camadas
+## Próximas fronteiras arquiteturais
 
-### 1. Modelo lógico
+### 1. Consolidar o frontend
 
-Representa documentos, planilhas, células, intervalos, tabelas e recursos sem depender de Flask, Supabase, DOM ou bibliotecas externas de planilha.
+- reduzir a coexistência entre `app.js`, `app-v2.js` e `app-v3.js`;
+- tornar o loader e os bridges a única entrada pública;
+- mover código legado explicitamente para uma camada de compatibilidade.
 
-### 2. Runtime incremental
+### 2. Consolidar o backend em camadas
 
-Recebe uma saída solicitada, expande somente o subgrafo necessário, consulta caches, carrega os blocos ausentes e recalcula apenas nós inválidos.
+- mover regras de negócio das rotas para casos de uso;
+- reduzir monkeypatches de instalação;
+- centralizar validação de capacidades;
+- separar contratos de domínio dos adaptadores Supabase.
 
-A execução segue:
+### 3. Completar a representação intermediária
 
-```text
-fórmula
-  ↓
-parser
-  ↓
-AST
-  ↓
-grafo de dependências
-  ↓
-invalidação seletiva
-  ↓
-avaliação sob demanda
-  ↓
-cache de resultado
-```
+- fórmulas, dependências e operações devem possuir contrato serializável comum;
+- manter semântica idêntica entre JavaScript e futuro Wasm;
+- criar testes diferenciais antes de substituir qualquer componente.
 
-Referências individuais são indexadas diretamente. Intervalos são registrados em buckets bidimensionais para que `A1:A5000` seja uma única relação lógica, e não cinco mil arestas independentes.
+### 4. Evoluir Rust/Wasm
 
-### 3. Armazenamento
+Ordem recomendada:
 
-Deve aceitar payloads legados densos e o modelo novo esparso. A transição será feita por adaptadores e versionamento de schema.
+1. parser e AST equivalentes;
+2. avaliação escalar básica;
+3. grafo e invalidação;
+4. biblioteca de funções;
+5. intervalos e matrizes;
+6. benchmarks comparativos;
+7. ativação gradual por feature flag;
+8. remoção do runtime JavaScript somente após equivalência comprovada.
 
-O runtime de cálculo já mantém apenas células preenchidas em seu armazenamento interno. A grade atual ainda será migrada para o mesmo modelo.
+### 5. Demonstrar desempenho
 
-### 4. Colaboração
+- publicar resultados reproduzíveis dos benchmarks;
+- incluir commit, ambiente, média, p50, p95 e p99;
+- medir abertura, cálculo, renderização, RAM e colaboração;
+- distinguir benchmark sintético de carga real em produção.
 
-Mantém a aplicação otimista atual, separando:
+## Regra de substituição
 
-- canal rápido não autoritativo;
-- fila local persistente;
-- confirmação autoritativa;
-- log ordenado de operações;
-- checkpoints e recuperação por delta;
-- conflitos de valores e operações estruturais.
-
-O motor de cálculo é local e determinístico. Alterações remotas entram como operações de célula e invalidam somente as cadeias relacionadas.
-
-### 5. Permissões
-
-Toda ação é protegida por uma capacidade, por exemplo:
-
-- `workbook.view`
-- `workbook.edit`
-- `workbook.delete`
-- `cell.edit`
-- `formula.edit`
-- `structure.edit`
-- `data.import`
-- `data.export`
-- `members.manage`
-- `roles.manage`
-
-As roles padrão continuam existindo, mas passam a ser presets de capacidades.
-
-### 6. Telemetria
-
-Cada planilha deve publicar métricas de:
-
-- heap do navegador, quando disponível;
-- células DOM;
-- células carregadas e preenchidas;
-- fórmulas e dependências;
-- arestas exatas e intervalos indexados;
-- cache e chunks ativos;
-- taxa de acerto do cache;
-- tempo de cálculo e renderização;
-- atraso de colaboração;
-- operações pendentes;
-- snapshots completos e recuperações por delta.
-
-## Motor de cálculo próprio
-
-O motor interno deve cumprir os seguintes contratos:
-
-- parser independente da interface;
-- AST estável e testável;
-- biblioteca de funções desacoplada;
-- grafo com dependências por célula e intervalo;
-- detecção de ciclos;
-- cálculo sob demanda;
-- cache reutilizável;
-- invalidação transitiva seletiva;
-- funções dinâmicas com saída derramada;
-- transações para alterações em lote;
-- desfazer e refazer;
-- métricas internas;
-- API compatível com futura implementação Rust/Wasm.
-
-A versão JavaScript é a implementação de referência e permite validar semântica, testes e contratos. O núcleo de alta performance poderá ser substituído por Rust/Wasm mantendo a mesma API pública.
-
-## Modelo de dados futuro
-
-O formato legado continua aceito:
-
-```json
-{"version": 1, "rows": 60, "cols": 26, "cells": [[1, 2, 3]]}
-```
-
-O formato esparso será introduzido por versão:
-
-```json
-{
-  "version": 2,
-  "storage": "sparse",
-  "rows": 1000000,
-  "cols": 10000,
-  "cells": [
-    {"r": 0, "c": 0, "v": 1},
-    {"r": 0, "c": 1, "v": "=A1*2"}
-  ]
-}
-```
-
-O tamanho lógico da grade não implica alocação de todas as posições.
-
-## Sequência de migração
-
-### Fundação
-
-- arquitetura documentada;
-- pacote `superexcel` independente;
-- capacidades e roles padrão;
-- telemetria por planilha;
-- adaptadores para payload compacto.
-
-### Motor próprio
-
-- remoção completa do HyperFormula;
-- parser e AST internos;
-- grafo incremental por célula e intervalo;
-- biblioteca inicial de fórmulas empresariais;
-- funções dinâmicas;
-- cache, ciclos, undo e redo;
-- testes automatizados de semântica.
-
-### Grade
-
-- armazenamento esparso no cliente;
-- viewport virtualizada;
-- eliminação do DOM por célula possível;
-- renderização apenas de resultados alterados.
-
-### Rust/Wasm
-
-- contrato binário do runtime;
-- implementação do parser e grafo em Rust;
-- buffers compactos entre interface e Wasm;
-- benchmarks comparativos com a implementação de referência;
-- substituição do núcleo sem alterar colaboração e UI.
-
-### Colaboração
-
-- versão por célula/recurso;
-- checkpoints por chunk;
-- recuperação sem snapshot completo;
-- operações estruturais transformáveis;
-- testes de carga multiusuário.
-
-### Aplicações e dados
-
-- visualizações sobre a mesma base lógica;
-- automações e endpoints reutilizando o grafo;
-- workers Python isolados;
-- publicação de aplicações empresariais.
-
-## Regra de aprovação
-
-Uma nova camada só substitui a antiga quando:
+Uma camada nova só substitui a antiga quando:
 
 1. possui testes automatizados;
-2. mantém compatibilidade de dados;
-3. alcança ou supera as metas de `BENCHMARK.md`;
+2. mantém compatibilidade de dados e fórmulas;
+3. alcança ou supera as metas aplicáveis de `BENCHMARK.md`;
 4. possui rollback claro;
-5. não piora colaboração ou consumo de memória.
+5. não piora colaboração, segurança ou consumo de memória;
+6. tem telemetria suficiente para detectar regressão;
+7. sua documentação descreve o comportamento real, e não apenas o objetivo.
