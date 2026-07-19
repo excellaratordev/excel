@@ -7,7 +7,7 @@ Base -> Planilha -> Base 2 -> Elementar
 entrada   cálculo    tratado   publicação
 ```
 
-A aplicação usa **Flask**, **Supabase**, **HTML/CSS/JavaScript**, um **motor de fórmulas próprio** e um contrato inicial em **Rust/WebAssembly**.
+A aplicação usa **Flask**, **Supabase**, **HTML/CSS/JavaScript**, um **motor de fórmulas próprio** e um protótipo **embrionário e experimental** em **Rust/WebAssembly**.
 
 > O retrato técnico completo e as limitações atuais estão em [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). As metas futuras permanecem separadas em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`BENCHMARK.md`](BENCHMARK.md).
 
@@ -33,8 +33,8 @@ O projeto já possui:
 
 ## O que ainda não está pronto
 
-- O motor de fórmulas autoritativo continua em JavaScript. O crate Rust/Wasm atual fornece ABI, memória e validação básica de operações, mas ainda não calcula fórmulas.
-- A estrutura do repositório permanece em migração e mantém camadas de compatibilidade, incluindo `app.js`, `app-v2.js` e `app-v3.js`.
+- O motor de fórmulas autoritativo continua em JavaScript. O crate Rust/Wasm atual é apenas um experimento de ABI e memória; ele não calcula fórmulas, não mantém estado de planilha e não está conectado ao caminho de produção.
+- O frontend da Planilha possui um único caminho de produção: `templates/index.html` carrega `sheet-bootstrap-v2.js`, que inicializa `app-v3.js`.
 - O payload suporta dimensões lógicas grandes, porém alguns fluxos atuais trabalham com limites menores, especialmente 5.000 linhas por 300 colunas.
 - Não existe importador nativo de XLSX/XLSM no código atual.
 - O conector GitHub é somente leitura, limitado a HTML e a uma conexão por projeto.
@@ -119,17 +119,38 @@ Exemplos:
 
 Use `;` como separador de argumentos e `,` como separador decimal.
 
-## Rust/WebAssembly
+## Rust/WebAssembly — estágio embrionário
 
-O diretório `wasm-engine/` contém a fundação atual:
+O diretório `wasm-engine/` **não contém um motor de planilhas**. Ele é um laboratório arquitetural mínimo para testar se o navegador consegue carregar um módulo Wasm e trocar um pequeno envelope de dados com ele.
 
-- ABI versão 1;
-- alocação e desalocação de memória;
-- validação de envelopes de operações;
-- testes Rust;
+O que existe hoje:
+
+- ABI experimental versão `1`;
+- funções de alocação e desalocação de memória linear;
+- verificação superficial de um envelope UTF-8 contendo os textos `id` e `kind`;
+- adaptador JavaScript que instancia o módulo e confere a versão da ABI;
+- três testes Rust básicos;
 - build para `wasm32-unknown-unknown` na CI.
 
-Ele ainda não substitui o runtime JavaScript. A fronteira está documentada em [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).
+A validação atual não faz parsing estrutural completo de JSON e não representa validação de negócio ou segurança.
+
+O que ainda não existe em Rust/Wasm:
+
+- parser e AST de fórmulas;
+- referências A1 e intervalos;
+- grafo de dependências;
+- biblioteca de funções e coerção de tipos;
+- recálculo, invalidação, cache e detecção de ciclos;
+- matrizes dinâmicas, undo e redo;
+- estado de workbook ou persistência;
+- integração com a grade, colaboração ou runtime JavaScript;
+- buffers binários compactos para grandes lotes;
+- benchmarks que demonstrem vantagem sobre JavaScript;
+- fallback e rollback para ativação segura.
+
+Portanto, Rust/Wasm não é uma migração ativa nem uma parte funcional do produto. É somente uma possibilidade futura. Qualquer adoção dependerá de contrato estruturado, testes de paridade, ganho mensurável de desempenho e memória, compatibilidade com planilhas existentes e rollback seguro.
+
+Consulte [`wasm-engine/README.md`](wasm-engine/README.md) e [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).
 
 ## Executar localmente
 
