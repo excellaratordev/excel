@@ -37,28 +37,37 @@ jobs:
       - name: Apply ABI 3 module wiring
         run: python scripts/apply_wasm_stateful_phase.py
 
-      - name: Validate stateful engine
+      - name: Validate and capture diagnostics
         run: |
-          python -m pip install pytest
-          cargo fmt --manifest-path wasm-engine/Cargo.toml
-          cargo test --manifest-path wasm-engine/Cargo.toml
-          sh scripts/build_wasm.sh
-          test -s static/wasm/superexcel_wasm_engine.wasm
-          node --check static/js/wasm/engine-contract.js
-          node --check static/js/wasm/formula-engine.js
-          node --check static/js/calculation/runtime-bridge.js
-          node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm
-          pytest -q tests/test_wasm_frontend.py
+          mkdir -p artifacts
+          set +e
+          {
+            python -m pip install pytest &&
+            cargo fmt --manifest-path wasm-engine/Cargo.toml &&
+            cargo test --manifest-path wasm-engine/Cargo.toml &&
+            sh scripts/build_wasm.sh &&
+            test -s static/wasm/superexcel_wasm_engine.wasm &&
+            node --check static/js/wasm/engine-contract.js &&
+            node --check static/js/wasm/formula-engine.js &&
+            node --check static/js/calculation/runtime-bridge.js &&
+            node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm &&
+            pytest -q tests/test_wasm_frontend.py
+          } > artifacts/stateful-build.log 2>&1
+          status=$?
+          echo "$status" > .stateful-build-status
+          cat artifacts/stateful-build.log
+          exit 0
 
-      - name: Commit compiled ABI 3 engine
+      - name: Commit generated engine and diagnostics
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add wasm-engine/src/lib.rs wasm-engine/src/workbook.rs static/wasm/superexcel_wasm_engine.wasm wasm-engine/Cargo.lock
-          if git diff --cached --quiet; then
-            echo "No generated changes"
-            exit 0
+          git add wasm-engine/src/lib.rs wasm-engine/src/workbook.rs static/wasm/superexcel_wasm_engine.wasm wasm-engine/Cargo.lock artifacts/stateful-build.log .stateful-build-status
+          if ! git diff --cached --quiet; then
+            git commit -m "build(wasm): compile or diagnose stateful ABI 3"
+            git pull --rebase origin engine/rust-wasm-stateful-workbook-v2
+            git push origin HEAD:engine/rust-wasm-stateful-workbook-v2
           fi
-          git commit -m "build(wasm): compile stateful workbook ABI 3"
-          git pull --rebase origin engine/rust-wasm-stateful-workbook-v2
-          git push origin HEAD:engine/rust-wasm-stateful-workbook-v2
+
+      - name: Enforce validation result
+        run: exit "$(cat .stateful-build-status)"
