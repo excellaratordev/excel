@@ -176,6 +176,8 @@ Limites atuais da seleção:
 
 A sincronização é opcional. Uma Base 2 sem vínculo continua funcionando como Base relacional editável.
 
+**Atenção:** cada materialização vinculada exclui todas as colunas e registros atuais da Base 2 e os recria a partir do intervalo selecionado. Edições manuais feitas no destino podem ser perdidas na próxima sincronização.
+
 ### Fórmulas na Base 2
 
 Em registros da Base 2:
@@ -269,8 +271,8 @@ O Test Time é uma ferramenta de observabilidade. Ele não altera as regras do p
 ### Use Base 2 para
 
 - estabilizar resultados em formato relacional;
-- combinar resultados calculados e ajustes manuais;
-- fornecer dados tratados para publicação.
+- receber materializações de intervalos calculados;
+- manter dados tratados para publicação, considerando que novas sincronizações substituem o conteúdo materializado.
 
 ### Use Elementar para
 
