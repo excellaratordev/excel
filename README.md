@@ -7,7 +7,7 @@ Base -> Planilha -> Base 2 -> Elementar
 entrada   cálculo    tratado   publicação
 ```
 
-A aplicação usa **Flask**, **Supabase**, **HTML/CSS/JavaScript**, um **motor de fórmulas próprio** e um protótipo **embrionário e experimental** em **Rust/WebAssembly**.
+A aplicação usa **Flask**, **Supabase**, **HTML/CSS/JavaScript**, um **motor de fórmulas próprio** e uma primeira fatia funcional híbrida em **Rust/WebAssembly**.
 
 > O retrato técnico completo e as limitações atuais estão em [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md). As metas futuras permanecem separadas em [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) e [`BENCHMARK.md`](BENCHMARK.md).
 
@@ -29,11 +29,11 @@ O projeto já possui:
 - telemetria e Test Time nas quatro etapas do pipeline;
 - conector GitHub para espelhar `templates/**/*.html`;
 - hospedagem isolada dos HTMLs sincronizados por prévia ou subdomínio;
-- CI com testes Python, JavaScript, benchmarks e compilação Wasm.
+- CI com testes Python, JavaScript, benchmarks e execução real do binário Wasm.
 
 ## O que ainda não está pronto
 
-- O motor de fórmulas autoritativo continua em JavaScript. O crate Rust/Wasm atual é apenas um experimento de ABI e memória; ele não calcula fórmulas, não mantém estado de planilha e não está conectado ao caminho de produção.
+- O grafo, cache, invalidação transitiva, funções avançadas e referências externas continuam autoritativos no runtime JavaScript. Rust/Wasm já calcula uma fatia real de fórmulas locais, mas ainda não substitui o núcleo completo.
 - O frontend da Planilha possui um único caminho de produção: `templates/index.html` carrega `sheet-bootstrap-v2.js`, que inicializa `app-v3.js`.
 - O payload suporta dimensões lógicas grandes, porém alguns fluxos atuais trabalham com limites menores, especialmente 5.000 linhas por 300 colunas.
 - Não existe importador nativo de XLSX/XLSM no código atual.
@@ -119,38 +119,44 @@ Exemplos:
 
 Use `;` como separador de argumentos e `,` como separador decimal.
 
-## Rust/WebAssembly — estágio embrionário
+## Rust/WebAssembly — primeira fatia funcional
 
-O diretório `wasm-engine/` **não contém um motor de planilhas**. Ele é um laboratório arquitetural mínimo para testar se o navegador consegue carregar um módulo Wasm e trocar um pequeno envelope de dados com ele.
+O diretório `wasm-engine/` contém um avaliador real de fórmulas locais em Rust compilado para WebAssembly. A integração é híbrida e segura: JavaScript continua disponível como fallback para qualquer recurso ainda não suportado.
 
-O que existe hoje:
+Implementado:
 
-- ABI experimental versão `1`;
-- funções de alocação e desalocação de memória linear;
-- verificação superficial de um envelope UTF-8 contendo os textos `id` e `kind`;
-- adaptador JavaScript que instancia o módulo e confere a versão da ABI;
-- três testes Rust básicos;
-- build para `wasm32-unknown-unknown` na CI.
+- ABI versão `2` com entrada e saída JSON tipadas;
+- parser e AST próprios em Rust;
+- números, textos, booleanos, referências A1 e intervalos locais;
+- operadores aritméticos, concatenação, percentual e comparações;
+- matrizes e broadcasting básico;
+- `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `SE`, `E`, `OU`, `NÃO`, `SEERRO`, `ABS` e `ARRED`, com aliases em inglês;
+- coleta das dependências locais utilizadas na avaliação;
+- limite de 4.096 células por intervalo avaliado pelo núcleo experimental;
+- binário versionado em `static/wasm/superexcel_wasm_engine.wasm`;
+- testes Rust e execução real do módulo Wasm pelo Node na CI.
 
-A validação atual não faz parsing estrutural completo de JSON e não representa validação de negócio ou segurança.
+Modos disponíveis:
 
-O que ainda não existe em Rust/Wasm:
+- `off`: somente JavaScript, modo padrão;
+- `shadow`: JavaScript permanece autoritativo e Rust é comparado em segundo plano;
+- `prefer`: Rust calcula fórmulas suportadas e recua automaticamente para JavaScript nas demais.
 
-- parser e AST de fórmulas;
-- referências A1 e intervalos;
-- grafo de dependências;
-- biblioteca de funções e coerção de tipos;
-- recálculo, invalidação, cache e detecção de ciclos;
-- matrizes dinâmicas, undo e redo;
-- estado de workbook ou persistência;
-- integração com a grade, colaboração ou runtime JavaScript;
-- buffers binários compactos para grandes lotes;
-- benchmarks que demonstrem vantagem sobre JavaScript;
-- fallback e rollback para ativação segura.
+Exemplo:
 
-Portanto, Rust/Wasm não é uma migração ativa nem uma parte funcional do produto. É somente uma possibilidade futura. Qualquer adoção dependerá de contrato estruturado, testes de paridade, ganho mensurável de desempenho e memória, compatibilidade com planilhas existentes e rollback seguro.
+```text
+/sheet/123?wasm=shadow
+/sheet/123?wasm=prefer
+```
 
-Consulte [`wasm-engine/README.md`](wasm-engine/README.md) e [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).
+Ainda permanecem em JavaScript:
+
+- grafo autoritativo, cache e invalidação transitiva;
+- funções empresariais avançadas e matrizes dinâmicas completas;
+- referências externas a Bases e Planilhas;
+- spill autoritativo, undo/redo, persistência e colaboração.
+
+Consulte [`wasm-engine/README.md`](wasm-engine/README.md), [`docs/RUST_WASM_ROADMAP.md`](docs/RUST_WASM_ROADMAP.md) e [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).
 
 ## Executar localmente
 
@@ -220,7 +226,7 @@ docker run --rm -p 8000:8000 --env-file .env super-excel
 
 Render:
 
-O `render.yaml` instala as dependências Python e web, copia o cliente Supabase para `static/vendor`, inicia o Gunicorn e usa `/api/health` como health check.
+O `render.yaml` instala as dependências Python e web, copia o cliente Supabase para `static/vendor`, inicia o Gunicorn e usa `/api/health` como health check. O binário Wasm já está versionado como asset estático e não exige toolchain Rust no servidor de produção.
 
 ## Conector GitHub
 
@@ -260,7 +266,8 @@ node benchmarks/calculation-benchmarks.js --profile ci
 node benchmarks/logical-benchmarks.js --profile ci
 node benchmarks/collaboration-simulator.js
 cargo test --manifest-path wasm-engine/Cargo.toml
-cargo build --manifest-path wasm-engine/Cargo.toml --target wasm32-unknown-unknown --release
+sh scripts/build_wasm.sh
+node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm
 ```
 
 ## Documentação
@@ -270,5 +277,6 @@ cargo build --manifest-path wasm-engine/Cargo.toml --target wasm32-unknown-unkno
 - [`docs/FILE_PIPELINE.md`](docs/FILE_PIPELINE.md): contrato Base -> Planilha -> Base 2 -> Elementar;
 - [`docs/ELEMENTAR_WORKBOOKS.md`](docs/ELEMENTAR_WORKBOOKS.md): publicação JSON;
 - [`docs/LOGICAL_ENGINE.md`](docs/LOGICAL_ENGINE.md): motor lógico;
+- [`docs/RUST_WASM_ROADMAP.md`](docs/RUST_WASM_ROADMAP.md): fases de migração do núcleo;
 - [`BENCHMARK.md`](BENCHMARK.md): metas oficiais;
 - [`docs/BENCHMARK-RUNBOOK.md`](docs/BENCHMARK-RUNBOOK.md): execução de benchmarks.

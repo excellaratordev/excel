@@ -9,13 +9,13 @@ O Super Excel é hoje uma aplicação web multiusuário para organizar projetos 
 - backend Flask;
 - Supabase para banco relacional, autenticação Google, RLS e recursos de tempo real;
 - frontend em HTML, CSS e JavaScript;
-- motor de fórmulas próprio em JavaScript;
+- motor de fórmulas próprio, com runtime JavaScript autoritativo e uma primeira fatia híbrida em Rust/WebAssembly;
 - payload esparso para Planilhas;
 - Bases relacionais para entrada e saída tratada;
 - publicação JSON por arquivos Elementar;
 - conector GitHub para importar e hospedar templates HTML.
 
-O núcleo funcional está operante, mas a arquitetura ainda está em transição. O motor de cálculo autoritativo continua em JavaScript; o módulo Rust/WebAssembly existente é um contrato inicial de ABI e validação de operações, não o motor completo de fórmulas.
+O núcleo funcional está operante, mas a arquitetura ainda está em transição. Rust/WebAssembly já possui parser, AST e avaliação real de uma parte das fórmulas locais, porém grafo, cache, funções avançadas, referências externas e estado autoritativo da planilha continuam no runtime JavaScript.
 
 ## Pipeline implementado
 
@@ -62,7 +62,7 @@ Estado atual:
 - primeira pintura usando snapshot local antes das consultas remotas;
 - carregamento de painéis, referências externas e telemetria sob demanda.
 
-O motor de fórmulas em produção é o runtime JavaScript localizado em `static/js/calculation/`.
+O runtime JavaScript em `static/js/calculation/` permanece autoritativo. O navegador pode carregar o avaliador Rust/Wasm em modo `shadow` para comparação ou `prefer` para usar Rust apenas nas fórmulas já suportadas, sempre com fallback automático.
 
 ### 3. Base 2 tratada
 
@@ -156,7 +156,8 @@ Limites atuais relevantes:
 - biblioteca lógica com avaliação preguiçosa;
 - referências externas a Bases;
 - métricas internas;
-- benchmarks C1-C5 e L1-L5 executados na CI.
+- benchmarks C1-C5 e L1-L5 executados na CI;
+- primeira fatia funcional em Rust/Wasm para fórmulas locais.
 
 ### Ainda em evolução
 
@@ -168,14 +169,28 @@ Limites atuais relevantes:
 
 ## Rust/WebAssembly
 
-Existe um crate em `wasm-engine/` que:
+O crate em `wasm-engine/` implementa atualmente:
 
-- define a ABI versão 1;
-- expõe alocação e desalocação de memória;
-- valida envelopes básicos de operações;
-- compila para `wasm32-unknown-unknown` na CI.
+- ABI versão 2;
+- alocação e desalocação de memória;
+- validação estrutural de envelopes JSON;
+- parser e AST próprios em Rust;
+- avaliação de números, textos, booleanos, referências A1 e intervalos locais;
+- operadores aritméticos, concatenação, percentual e comparações;
+- matrizes e broadcasting básico;
+- funções `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `SE`, `E`, `OU`, `NÃO`, `SEERRO`, `ABS` e `ARRED`, com aliases em inglês;
+- coleta de dependências locais;
+- build para `wasm32-unknown-unknown` e execução real do binário na CI;
+- integração no navegador com modos `off`, `shadow` e `prefer`.
 
-Ele ainda não implementa parser de fórmulas, AST, grafo, biblioteca de funções ou recálculo. Portanto, Rust/Wasm é hoje uma fundação de integração, não o motor principal.
+Ainda não foram migrados para Rust/Wasm:
+
+- grafo autoritativo, cache e invalidação transitiva;
+- referências externas a Bases e Planilhas;
+- funções empresariais avançadas e matrizes dinâmicas completas;
+- spill autoritativo, undo/redo, persistência e colaboração.
+
+O modo padrão permanece `off`. Em `shadow`, JavaScript continua autoritativo e divergências são registradas. Em `prefer`, fórmulas suportadas usam Rust e qualquer recurso não suportado retorna ao JavaScript.
 
 ## Conector GitHub e publicação HTML
 
@@ -203,7 +218,7 @@ Implementado:
 - testes Python e JavaScript;
 - compilação de sintaxe Python/JavaScript na CI;
 - benchmarks de cálculo, lógica e simulação de colaboração;
-- compilação e testes do crate Wasm;
+- compilação, testes Rust e execução real do asset Wasm;
 - validação de migrations e de assets same-origin.
 
 ## Implantação atual
@@ -213,6 +228,7 @@ Implementado:
 - Docker disponível;
 - Supabase obrigatório para banco e autenticação;
 - dependência web do Supabase copiada para `static/vendor` durante o build;
+- binário Wasm versionado em `static/wasm/`, sem exigir Rust no servidor de produção;
 - health check em `/api/health`.
 
 Variáveis mínimas:
@@ -227,7 +243,7 @@ O conector GitHub exige variáveis adicionais descritas em `docs/GITHUB_TEMPLATE
 
 ## O que não está implementado no código atual
 
-- motor completo de fórmulas em Rust/Wasm;
+- motor completo e autoritativo de fórmulas em Rust/Wasm;
 - aplicação desktop/Tauri;
 - importação nativa de XLSX ou XLSM;
 - edição bidirecional dos templates GitHub;
@@ -241,6 +257,7 @@ O conector GitHub exige variáveis adicionais descritas em `docs/GITHUB_TEMPLATE
 - `docs/FILE_PIPELINE.md`: regras detalhadas das quatro etapas;
 - `docs/ELEMENTAR_WORKBOOKS.md`: contrato atual da publicação JSON;
 - `docs/LOGICAL_ENGINE.md`: motor lógico;
+- `docs/RUST_WASM_ROADMAP.md`: fases de migração do núcleo;
 - `docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`: decisão do motor próprio;
 - `BENCHMARK.md`: metas e critérios, não resultados atuais;
 - `docs/BENCHMARK-RUNBOOK.md`: execução dos benchmarks;

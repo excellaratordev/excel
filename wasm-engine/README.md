@@ -1,62 +1,104 @@
-# Rust/Wasm do Super Excel — protótipo experimental
+# Motor Rust/WebAssembly do Super Excel
 
-## Status atual
+Este crate contém a primeira fatia funcional do motor de fórmulas em Rust/Wasm. Ele ainda não substitui todo o runtime JavaScript, mas deixou de ser apenas uma validação de ABI.
 
-Este crate está em estágio **embrionário**. Ele existe para testar uma fronteira mínima entre JavaScript e WebAssembly, mas ainda não contém um motor de cálculo e não é usado para avaliar fórmulas em produção.
+## Estado atual
 
-O runtime autoritativo atual continua em `static/js/calculation/`.
+A ABI versão `2` implementa:
 
-## O que existe
+- alocação e desalocação de memória linear;
+- validação estrutural de envelopes JSON;
+- parser próprio de fórmulas escalares;
+- referências A1 locais;
+- intervalos locais limitados a 4.096 células por avaliação;
+- operadores `+`, `-`, `*`, `/`, `^`, `&`, `%` e comparações;
+- matrizes e broadcasting básico;
+- funções `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `SE`, `E`, `OU`, `NÃO`, `SEERRO`, `ABS` e `ARRED`, com aliases em inglês;
+- resposta JSON tipada com valor, dependências e status;
+- integração experimental no navegador com modos `off`, `shadow` e `prefer`.
 
-A versão atual implementa apenas uma ABI experimental identificada como `1`:
+## Modos do navegador
 
-- `superexcel_abi_version() -> u32`
-- `superexcel_alloc(len) -> pointer`
-- `superexcel_dealloc(pointer, len)`
-- `superexcel_validate_operation(pointer, len) -> 0 | 1`
+O modo é controlado por `?wasm=` ou por `localStorage['superexcel.wasm.mode']`:
 
-O adaptador do navegador está em `static/js/wasm/engine-contract.js`. Ele instancia um módulo Wasm, confere a versão da ABI, copia um envelope JSON UTF-8 para a memória linear e chama a função de validação.
+- `off`: somente JavaScript;
+- `shadow`: JavaScript continua autoritativo e o resultado Rust é comparado em segundo plano;
+- `prefer`: fórmulas suportadas são avaliadas em Rust; recursos não suportados usam fallback JavaScript.
 
-O CI atualmente garante apenas que:
+Exemplo:
 
-- os testes unitários básicos do crate passam;
-- o crate compila para `wasm32-unknown-unknown`;
-- um arquivo `.wasm` é produzido.
+```text
+/sheet/123?wasm=shadow
+```
 
-## Limitações importantes
+## ABI versão 2
 
-`superexcel_validate_operation` não realiza parsing estrutural completo de JSON. A validação atual verifica somente tamanho, UTF-8, delimitadores externos e presença textual dos campos `id` e `kind`. Portanto, ela é uma prova de contrato de memória, não uma validação de negócio ou segurança.
+Exports principais:
 
-Os tipos `CellValue`, `CellCoordinate` e `CellPatch` ainda são apenas modelos internos de demonstração. Eles não são serializados pela ABI, não alimentam a grade e não alteram o estado de uma planilha.
+```text
+superexcel_abi_version() -> u32
+superexcel_alloc(len) -> pointer
+superexcel_dealloc(pointer, len)
+superexcel_validate_operation(pointer, len) -> 0 | 1
+superexcel_evaluate_formula(pointer, len) -> result_pointer
+superexcel_last_result_len() -> usize
+```
 
-## O que ainda não existe
+Entrada de avaliação:
 
-O crate ainda não implementa:
+```json
+{
+  "formula": "=SOMA(A1:A3)+B1",
+  "cells": {
+    "A1": 2,
+    "A2": 3,
+    "A3": 5,
+    "B1": 10
+  }
+}
+```
 
-- tokenização e parser de fórmulas;
-- AST ou representação intermediária;
-- referências A1 e intervalos;
-- grafo de dependências;
-- invalidação e recálculo seletivos;
-- biblioteca de funções;
-- coerção de tipos e tratamento de erros;
-- ciclos, cache, matrizes dinâmicas, undo e redo;
-- persistência, colaboração ou sincronização;
-- buffers binários compactos para lotes de células;
-- integração com o runtime JavaScript;
-- benchmarks de paridade ou superioridade;
-- mecanismo de fallback e rollback.
+Saída:
 
-## Critérios antes de uso real
+```json
+{
+  "status": "ok",
+  "value": 20,
+  "value_type": "number",
+  "dependencies": ["A1", "A2", "A3", "B1"],
+  "error": null
+}
+```
 
-Rust/Wasm só poderá substituir alguma parte do runtime JavaScript quando houver:
+## Limites atuais
 
-1. contrato de dados estruturado e versionado;
-2. testes de semântica compartilhados entre JavaScript e Rust;
-3. paridade funcional mensurável;
-4. benchmarks reproduzíveis de latência e memória;
-5. integração incremental, sem bloquear a interface;
-6. compatibilidade com planilhas existentes;
-7. fallback e rollback claros.
+Ainda permanecem no runtime JavaScript:
 
-Até esses critérios serem atendidos, este diretório deve ser tratado como laboratório arquitetural, não como motor de produção.
+- grafo autoritativo de dependências;
+- cache e invalidação transitiva;
+- alterações em lote, undo e redo;
+- referências externas a Bases e Planilhas;
+- funções de busca, critérios e matrizes dinâmicas avançadas;
+- spill autoritativo;
+- persistência e colaboração.
+
+O próximo objetivo é mover o grafo e o cache para Rust sem mudar a API pública da grade.
+
+## Build
+
+```bash
+sh scripts/build_wasm.sh
+```
+
+O artefato é copiado para:
+
+```text
+static/wasm/superexcel_wasm_engine.wasm
+```
+
+## Testes
+
+```bash
+cargo test --manifest-path wasm-engine/Cargo.toml
+node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm
+```

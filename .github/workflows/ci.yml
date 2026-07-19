@@ -27,6 +27,7 @@ jobs:
           rustup toolchain install stable --profile minimal
           rustup default stable
           rustup target add wasm32-unknown-unknown
+          rustup component add rustfmt
           rustc --version
           cargo --version
 
@@ -109,6 +110,7 @@ jobs:
           node --check static/js/sheet-collaboration-v3.js
           node --check static/js/performance-telemetry.js
           node --check static/js/wasm/engine-contract.js
+          node --check static/js/wasm/formula-engine.js
           node --check benchmarks/calculation-benchmarks.js
           node --check benchmarks/logical-benchmarks.js
           node --check benchmarks/collaboration-simulator.js
@@ -125,11 +127,14 @@ jobs:
       - name: Execute R1-R5 collaboration simulation
         run: node benchmarks/collaboration-simulator.js --output artifacts/collaboration-simulation.json
 
-      - name: Validate Rust contract
+      - name: Validate Rust/Wasm formula engine
         run: |
+          cargo fmt --manifest-path wasm-engine/Cargo.toml -- --check
           cargo test --manifest-path wasm-engine/Cargo.toml
-          cargo build --manifest-path wasm-engine/Cargo.toml --target wasm32-unknown-unknown --release
-          test -s wasm-engine/target/wasm32-unknown-unknown/release/superexcel_wasm_engine.wasm
+          sh scripts/build_wasm.sh
+          test -s static/wasm/superexcel_wasm_engine.wasm
+          node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm
+          pytest -q tests/test_wasm_frontend.py
 
       - name: Validate migration contracts
         run: |
