@@ -9,7 +9,8 @@
   const liveJson = document.querySelector('#elementar-live-json');
   const roleRank = { viewer: 0, editor: 1, admin: 2, owner: 3 };
   const declarationPattern = /^\s*([A-Za-zÀ-ÿ_][A-Za-zÀ-ÿ0-9_.-]*)\s*=\s*'((?:[^']|'')+)'\s*!\s*(\$?[A-Z]{1,3}\$?\d+(?::\$?[A-Z]{1,3}\$?\d+)?)\s*$/iu;
-  const STATE_POLL_MS = 700;
+  const ACTIVE_STATE_POLL_MS = 2500;
+  const OPEN_PANEL_POLL_MS = 5000;
   const BASE_POLL_MS = 250;
   const SHEET_POLL_MS = 120;
   const MAX_PREVIEW_ITEMS = 24;
@@ -203,6 +204,22 @@
     ui.button.setAttribute('aria-pressed', String(state.panelOpen));
     document.body.classList.toggle('test-time-panel-open', state.panelOpen);
     if (state.panelOpen) loadState(true);
+    updateStatePolling();
+  }
+
+  function updateStatePolling() {
+    if (state.stateTimer) window.clearInterval(state.stateTimer);
+    state.stateTimer = null;
+    const running = state.session?.status === 'running';
+    const interval = running
+      ? ACTIVE_STATE_POLL_MS
+      : state.panelOpen
+        ? OPEN_PANEL_POLL_MS
+        : 0;
+    if (!interval) return;
+    state.stateTimer = window.setInterval(() => {
+      if (!document.hidden) loadState(true);
+    }, interval);
   }
 
   function setSelection(selection) {
@@ -337,6 +354,7 @@
     renderGroups();
     renderTimeline();
     updateObservationLoop();
+    updateStatePolling();
   }
 
   function renderGroups() {
@@ -704,8 +722,16 @@
     window.addEventListener('superexcel:rendered', event => markChanged(event.detail?.coordinates));
     ['superexcel:hydrated', 'superexcel:base-reference-inserted', 'superexcel:elementar-source-synced', 'superexcel:treated-base-source-synced'].forEach(name => window.addEventListener(name, () => markChanged([])));
     if (liveJson) new MutationObserver(() => markChanged([])).observe(liveJson, { childList: true, characterData: true, subtree: true });
-    window.addEventListener('focus', () => { loadState(true); scheduleObserve(0); });
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) { loadState(true); scheduleObserve(0); } });
+    window.addEventListener('focus', () => {
+      if (state.panelOpen || state.session?.status === 'running') loadState(true);
+      scheduleObserve(0);
+    });
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        if (state.panelOpen || state.session?.status === 'running') loadState(true);
+        scheduleObserve(0);
+      }
+    });
   }
 
   async function initialize() {
@@ -714,8 +740,8 @@
     buildUi();
     installSelectionBridges();
     installObservationBridges();
-    await loadState(false);
-    state.stateTimer = setInterval(() => loadState(true), STATE_POLL_MS);
+    // O Test Time é opcional. Nenhuma consulta é feita até o usuário abrir
+    // o painel; durante uma sessão ativa o próprio renderState inicia o polling.
   }
 
   window.addEventListener('pagehide', () => {

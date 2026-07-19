@@ -201,6 +201,14 @@
     }
   }
 
+  function runWhenIdle(callback, timeout = 1800) {
+    if (typeof window.requestIdleCallback === 'function') {
+      window.requestIdleCallback(callback, { timeout });
+      return;
+    }
+    window.setTimeout(callback, Math.min(timeout, 1200));
+  }
+
   function ensureDependencyPolling() {
     if (state.dependencyTimer) window.clearInterval(state.dependencyTimer);
     state.dependencyTimer = window.setInterval(() => {
@@ -225,8 +233,10 @@
 
   window.addEventListener('superexcel:hydrated', () => {
     state.hydrated = true;
-    loadDependencies({ capture: true }).catch(error => console.debug('Dependências Elementar indisponíveis.', error));
-    ensureDependencyPolling();
+    runWhenIdle(() => {
+      loadDependencies({ capture: true }).catch(error => console.debug('Dependências Elementar indisponíveis.', error));
+      ensureDependencyPolling();
+    });
   });
 
   window.addEventListener('focus', () => {
