@@ -1,12 +1,16 @@
 [package]
 name = "superexcel-wasm-engine"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
-description = "Experimental ABI prototype for a future Super Excel Rust/Wasm calculation engine"
+description = "Experimental Rust/WebAssembly formula engine for Super Excel"
 license = "MIT"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [profile.release]
 lto = true
