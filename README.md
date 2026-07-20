@@ -119,13 +119,13 @@ Exemplos:
 
 Use `;` como separador de argumentos e `,` como separador decimal.
 
-## Rust/WebAssembly — ABI 6, IR v2 e avaliação esparsa
+## Rust/WebAssembly — ABI 7, IR v2, matrizes dinâmicas e spill verificável
 
-O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. A ABI 6 mantém a IR JSON versão 2, na qual referências diretas e retângulos de intervalo são descritos separadamente.
+O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. A ABI 7 mantém a IR JSON versão 2, na qual referências diretas e retângulos de intervalo são descritos separadamente.
 
 Implementado:
 
-- ABI versão `6` e IR de fórmulas versão `2`;
+- ABI versão `7` e IR de fórmulas versão `2`;
 - parser e AST próprios em Rust;
 - compilação de fórmula para IR pelo JavaScript e pelo Wasm;
 - números, textos, booleanos, referências A1 e intervalos locais;
@@ -134,6 +134,9 @@ Implementado:
 - funções condicionais `CONT.SE`, `CONT.SES`, `SOMASE`, `SOMASES`, `MÉDIASE` e `MÉDIASES`;
 - critérios numéricos, comparadores e curingas `*` e `?`;
 - buscas `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
+- matrizes dinâmicas `FILTRO`, `ÚNICO` e `CLASSIFICAR`, com aliases em inglês;
+- resultados matriciais tipados de até 10.000 células;
+- plano de spill `ready`, `blocked` ou `scalar`, com área, matriz e células bloqueadoras;
 - workbooks identificados por handles;
 - grafo reverso para referências diretas e índice de intervalos em buckets 256×32;
 - índice ordenado de células ocupadas e avaliador esparso para ranges acima de 4.096 posições;
@@ -142,7 +145,7 @@ Implementado:
 - cache de resultados e invalidação transitiva seletiva;
 - detecção de ciclos;
 - alterações em lote, revisão e lista de células afetadas;
-- métricas de cache, recálculo, arestas, ranges esparsos, células resolvidas e posições cuja materialização foi evitada;
+- métricas de cache, recálculo, arestas, ranges esparsos, células resolvidas, spill planejado e conflitos;
 - espelhamento das edições feitas no runtime JavaScript;
 - reconstrução segura do espelho após undo/redo;
 - avaliação stateless limitada a 4.096 posições; workbook stateful aceita ranges de até 100.000 posições sem buffer denso para a fatia esparsa suportada;
@@ -164,9 +167,10 @@ Exemplo:
 
 Ainda permanecem em JavaScript:
 
-- funções de matrizes dinâmicas completas, como `FILTRO`, `ÚNICO` e `CLASSIFICAR`;
+- aplicação autoritativa do spill na grade e propagação de seus alvos pelo Rust;
+- matrizes dinâmicas acima dos limites experimentais e operações matriciais ainda não cobertas;
 - referências externas a Bases e Planilhas;
-- spill autoritativo, histórico, persistência, snapshots e colaboração.
+- histórico, persistência, snapshots e colaboração.
 
 Consulte [`wasm-engine/README.md`](wasm-engine/README.md), [`docs/RUST_WASM_ROADMAP.md`](docs/RUST_WASM_ROADMAP.md) e [`docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md`](docs/ADR-001-CUSTOM-CALCULATION-ENGINE.md).
 

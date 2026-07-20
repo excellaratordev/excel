@@ -171,7 +171,7 @@ Limites atuais relevantes:
 
 O crate em `wasm-engine/` implementa atualmente:
 
-- ABI versão 6 e IR de fórmulas versão 2;
+- ABI versão 7 e IR de fórmulas versão 2;
 - alocação e desalocação de memória;
 - validação estrutural de envelopes JSON;
 - parser e AST próprios em Rust;
@@ -182,6 +182,8 @@ O crate em `wasm-engine/` implementa atualmente:
 - `CONT.SE`, `CONT.SES`, `SOMASE`, `SOMASES`, `MÉDIASE` e `MÉDIASES`;
 - critérios com operadores, números e curingas;
 - `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
+- `FILTRO`, `ÚNICO` e `CLASSIFICAR` com retorno matricial tipado;
+- plano stateful de spill com dimensões, área, matriz, bloqueadores e `#DESPEJAR!`;
 - registro de workbooks por handles;
 - armazenamento de valores e fórmulas locais;
 - grafo reverso de referências diretas e índice de intervalos em buckets 256×32;
@@ -190,14 +192,14 @@ O crate em `wasm-engine/` implementa atualmente:
 - critérios e buscas por streaming posicional sem buffer denso;
 - cache, detecção de ciclos e invalidação transitiva seletiva;
 - alterações em lote, revisão e lista de afetados;
-- métricas de cache, recálculo, arestas, ranges esparsos, células resolvidas e posições evitadas/percorridas;
+- métricas de cache, recálculo, arestas, ranges esparsos, células resolvidas, planos de spill e conflitos;
 - build para `wasm32-unknown-unknown`, testes diferenciais de IR e execução real do binário na CI;
 - integração no navegador com modos `off`, `shadow` e `prefer`.
 
 Ainda não foram migrados para Rust/Wasm:
 
 - referências externas a Bases e Planilhas;
-- matrizes dinâmicas completas e spill autoritativo;
+- aplicação autoritativa do spill pelo Rust e matrizes dinâmicas acima dos limites experimentais;
 - histórico, persistência, snapshots e colaboração.
 
 O modo padrão permanece `off`. Em `shadow`, JavaScript continua como resultado autoritativo e divergências são registradas. Em `prefer`, células escalares suportadas usam o workbook Rust e qualquer recurso não suportado retorna ao JavaScript.

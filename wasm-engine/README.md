@@ -4,7 +4,7 @@ Este crate contém um núcleo funcional e stateful do motor de fórmulas em Rust
 
 ## Estado atual
 
-A ABI versão `6` implementa:
+A ABI versão `7` implementa:
 
 - alocação e desalocação de memória linear;
 - validação estrutural de envelopes JSON;
@@ -18,6 +18,10 @@ A ABI versão `6` implementa:
 - funções condicionais `CONT.SE`, `CONT.SES`, `SOMASE`, `SOMASES`, `MÉDIASE` e `MÉDIASES`;
 - critérios numéricos, operadores de comparação e curingas `*` e `?`;
 - buscas `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
+- matrizes dinâmicas `FILTRO`, `ÚNICO` e `CLASSIFICAR`;
+- resultados `array` em JSON, limitados a 10.000 células;
+- plano de spill stateful com estados `ready`, `blocked` e `scalar`;
+- detecção de células bloqueadoras e retorno `#DESPEJAR!`;
 - aliases em inglês para as funções suportadas;
 - resposta JSON tipada com valor, dependências e status;
 - registro de workbooks por handle;
@@ -31,7 +35,7 @@ A ABI versão `6` implementa:
 - invalidação transitiva somente das cadeias afetadas;
 - detecção de ciclos durante a avaliação;
 - aplicação de alterações em lote com revisão e lista de afetados;
-- métricas de cache, recálculo, ranges esparsos, células resolvidas, posições percorridas e materialização evitada;
+- métricas de cache, recálculo, ranges esparsos, células resolvidas, planos de spill e conflitos;
 - integração experimental no navegador com modos `off`, `shadow` e `prefer`.
 
 ## Modos do navegador
@@ -49,7 +53,7 @@ Exemplo:
 /sheet/123?wasm=prefer
 ```
 
-## ABI versão 6
+## ABI versão 7
 
 Exports stateless:
 
@@ -69,6 +73,7 @@ Exports stateful:
 superexcel_workbook_create(pointer, len) -> result_pointer
 superexcel_workbook_apply(handle, pointer, len) -> result_pointer
 superexcel_workbook_get_cell(handle, pointer, len) -> result_pointer
+superexcel_workbook_get_spill(handle, pointer, len) -> result_pointer
 superexcel_workbook_stats(handle) -> result_pointer
 superexcel_workbook_destroy(handle) -> 0 | 1
 ```
@@ -141,13 +146,15 @@ O navegador cria um workbook Rust a partir da matriz atual e espelha alteraçõe
 
 Após `undo` ou `redo`, o espelho Rust é reconstruído a partir do estado serializado pelo runtime JavaScript. O handle também é destruído quando o runtime é encerrado ou o modo Wasm volta para `off`.
 
+Para matrizes locais, o workbook pode retornar o array completo e gerar um plano de spill. O plano informa área, dimensões e bloqueadores, mas não escreve os valores derivados nas células-alvo. Essa aplicação continua no runtime JavaScript.
+
 ## Limites atuais
 
 Ainda permanecem no runtime JavaScript:
 
-- `FILTRO`, `ÚNICO`, `CLASSIFICAR` e demais matrizes dinâmicas completas;
+- demais matrizes dinâmicas e operações acima dos limites experimentais;
 - referências externas a Bases e Planilhas;
-- spill autoritativo;
+- aplicação autoritativa do spill e registro dos alvos pelo Rust;
 - undo/redo e transações como fonte oficial do histórico;
 - persistência, snapshots e colaboração;
 - resultado autoritativo de matrizes no modo `prefer`.
@@ -160,7 +167,8 @@ Quando uma fórmula não é suportada, o núcleo retorna `unsupported`; o navega
 - até 4.096 posições por intervalo no avaliador stateless;
 - até 100.000 posições por intervalo no workbook stateful;
 - até 100.000 células armazenadas por workbook experimental;
-- até 10.000 alterações por lote.
+- até 10.000 alterações por lote;
+- até 10.000 células por matriz dinâmica ou plano de spill.
 
 ## Build
 
