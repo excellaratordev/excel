@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ABI_VERSION = 5;
+  const ABI_VERSION = 6;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 

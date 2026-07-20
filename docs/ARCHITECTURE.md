@@ -286,18 +286,20 @@ O runtime JavaScript atual fornece parser independente da grade, AST, referênci
 
 O crate `wasm-engine/` é compilado pela CI e contém um núcleo experimental stateful:
 
-- ABI versão 5 e IR de fórmulas versão 2;
+- ABI versão 6 e IR de fórmulas versão 2;
 - parser e AST em Rust;
 - compilação local para IR JSON compacta, separando células e retângulos, com testes diferenciais contra o parser JavaScript;
 - avaliação de fórmulas locais básicas, condicionais e de busca;
 - critérios numéricos, operadores e curingas;
 - workbooks identificados por handles;
 - grafo reverso de referências diretas e índice de intervalos em buckets 256×32;
+- índice ordenado de células ocupadas e avaliador esparso para ranges grandes;
+- agregações sobre células ocupadas e streaming posicional para critérios/buscas;
 - cache de resultados, detecção de ciclos e invalidação transitiva;
 - alterações em lote, revisão, lista de afetados e métricas;
 - integração `off`, `shadow` e `prefer` com fallback JavaScript.
 
-O grafo Rust não expande intervalos em arestas por célula; ele seleciona candidatos por bucket e confirma a sobreposição exata. A IR não cobre referências externas, e o núcleo ainda não substitui matrizes dinâmicas, spill, intervalos grandes indexados, histórico, persistência ou colaboração. JavaScript permanece como referência geral e fallback.
+O grafo Rust não expande intervalos em arestas por célula; ele seleciona candidatos por bucket e confirma a sobreposição exata. O avaliador stateful também evita buffers densos em ranges grandes: agregações simples visitam somente células ocupadas, enquanto critérios e buscas percorrem posições implicitamente. A IR não cobre referências externas, e o núcleo ainda não substitui matrizes dinâmicas, spill, histórico, persistência ou colaboração. JavaScript permanece como referência geral e fallback.
 
 ## Matriz de maturidade
 
@@ -318,7 +320,7 @@ O grafo Rust não expande intervalos em arestas por célula; ele seleciona candi
 | Colaboração por operações | Implementado |
 | Telemetria e Test Time | Implementado |
 | GitHub App e hospedagem HTML | Implementado |
-| Workbook Rust/Wasm local stateful e IR v1 | Implementado parcialmente; inclui funções empresariais, mas o modo padrão ainda é `off` |
+| Workbook Rust/Wasm local stateful, IR v2 e ranges esparsos | Implementado parcialmente; inclui funções empresariais, mas o modo padrão ainda é `off` |
 | Motor completo Rust/Wasm | Não implementado |
 | Importação XLSX/XLSM | Não implementado |
 | Aplicação desktop/Tauri | Não implementado |
@@ -370,14 +372,14 @@ Uma camada antiga só permanece quando ainda possui consumidor ativo ou contrato
 
 ### 3. Ampliar a representação intermediária
 
-- a IR versão 1 cobre fórmulas locais e possui testes diferenciais entre JavaScript e Rust;
+- a IR versão 2 cobre fórmulas locais e ranges compactos e possui testes diferenciais entre JavaScript e Rust;
 - adicionar referências externas, tipos especializados e metadados de origem;
 - aproximar o catálogo de aliases de uma única fonte de verdade;
 - manter a semântica do runtime JavaScript como referência autoritativa até a paridade comprovada.
 
 ### 4. Expandir Rust/Wasm com evidência
 
-A base stateful, a IR v1 e as funções empresariais iniciais já existem. A próxima ampliação exige buffers compactos, matrizes dinâmicas, referências externas, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
+A base stateful, a IR v2, as funções empresariais e a avaliação esparsa de ranges já existem. A próxima ampliação exige buffers tipados para resultados matriciais, matrizes dinâmicas, referências externas, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
 
 ### 5. Demonstrar desempenho
 

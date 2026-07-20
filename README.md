@@ -119,13 +119,13 @@ Exemplos:
 
 Use `;` como separador de argumentos e `,` como separador decimal.
 
-## Rust/WebAssembly — ABI 5, IR v2 e índice de intervalos
+## Rust/WebAssembly — ABI 6, IR v2 e avaliação esparsa
 
-O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. A ABI 5 expõe a IR JSON versão 2, na qual referências diretas e retângulos de intervalo são descritos separadamente.
+O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. A ABI 6 mantém a IR JSON versão 2, na qual referências diretas e retângulos de intervalo são descritos separadamente.
 
 Implementado:
 
-- ABI versão `5` e IR de fórmulas versão `2`;
+- ABI versão `6` e IR de fórmulas versão `2`;
 - parser e AST próprios em Rust;
 - compilação de fórmula para IR pelo JavaScript e pelo Wasm;
 - números, textos, booleanos, referências A1 e intervalos locais;
@@ -136,13 +136,16 @@ Implementado:
 - buscas `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
 - workbooks identificados por handles;
 - grafo reverso para referências diretas e índice de intervalos em buckets 256×32;
+- índice ordenado de células ocupadas e avaliador esparso para ranges acima de 4.096 posições;
+- agregações simples resolvendo somente células ocupadas;
+- funções condicionais e buscas percorrendo posições sem construir matrizes densas;
 - cache de resultados e invalidação transitiva seletiva;
 - detecção de ciclos;
 - alterações em lote, revisão e lista de células afetadas;
-- métricas de cache, recálculo, atualizações e arestas;
+- métricas de cache, recálculo, arestas, ranges esparsos, células resolvidas e posições cuja materialização foi evitada;
 - espelhamento das edições feitas no runtime JavaScript;
 - reconstrução segura do espelho após undo/redo;
-- avaliação stateless limitada a 4.096 posições; workbook stateful aceita intervalos de até 100.000 posições;
+- avaliação stateless limitada a 4.096 posições; workbook stateful aceita ranges de até 100.000 posições sem buffer denso para a fatia esparsa suportada;
 - binário versionado em `static/wasm/superexcel_wasm_engine.wasm`;
 - testes diferenciais de IR, testes Rust e execução real do módulo Wasm pelo Node na CI.
 

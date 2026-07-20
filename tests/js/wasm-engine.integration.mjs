@@ -12,7 +12,7 @@ const defaultWasm = path.resolve(currentDir, '../../wasm-engine/target/wasm32-un
 const wasmPath = path.resolve(process.argv[2] || defaultWasm);
 const engine = await contract.instantiate(fs.readFileSync(wasmPath));
 
-assert.equal(engine.version, 5);
+assert.equal(engine.version, 6);
 assert.equal(engine.validateOperation({ id: 'op-1', kind: 'cells.patch', changes: [] }), true);
 assert.equal(engine.validateOperation({ kind: 'cells.patch' }), false);
 
@@ -103,10 +103,27 @@ const unrelatedApplied = engine.applyWorkbook(largeWorkbook.handle, { B1: 9 });
 assert.deepEqual(unrelatedApplied.affected, ['B1']);
 assert.equal(engine.destroyWorkbook(largeWorkbook.handle), true);
 
+const sparseWorkbook = engine.createWorkbook({
+  A1: 10,
+  A100000: 20,
+  B1: 'Pago',
+  B100000: 'Pago',
+  Z1: '=SOMA(A1:A100000)',
+  Z2: '=SOMASES(A1:A100000;B1:B100000;"Pago")',
+});
+assert.equal(sparseWorkbook.status, 'ok');
+assert.equal(engine.getWorkbookCell(sparseWorkbook.handle, 'Z1').value, 30);
+assert.equal(engine.getWorkbookCell(sparseWorkbook.handle, 'Z2').value, 30);
+const sparseStats = engine.getWorkbookStats(sparseWorkbook.handle).stats;
+assert.ok(sparseStats.sparse_range_evaluations >= 1);
+assert.ok(sparseStats.range_positions_avoided >= 99998);
+assert.ok(sparseStats.streamed_range_positions >= 100000);
+assert.equal(engine.destroyWorkbook(sparseWorkbook.handle), true);
+
 console.log(JSON.stringify({
   wasm: 'ok',
   abi: engine.version,
-  tests: 20,
+  tests: 22,
   ir: rustIr.ir_version,
   business: ['SOMASES', 'PROCX'],
   stateful: {
@@ -114,5 +131,8 @@ console.log(JSON.stringify({
     cache_hits: statsAfter.cache_hits,
     recalculations: statsAfter.recalculations,
     range_buckets: largeStats.range_buckets,
+    sparse_evaluations: sparseStats.sparse_range_evaluations,
+    positions_avoided: sparseStats.range_positions_avoided,
+    streamed_positions: sparseStats.streamed_range_positions,
   },
 }));
