@@ -171,7 +171,7 @@ Limites atuais relevantes:
 
 O crate em `wasm-engine/` implementa atualmente:
 
-- ABI versão 5 e IR de fórmulas versão 2;
+- ABI versão 6 e IR de fórmulas versão 2;
 - alocação e desalocação de memória;
 - validação estrutural de envelopes JSON;
 - parser e AST próprios em Rust;
@@ -185,9 +185,12 @@ O crate em `wasm-engine/` implementa atualmente:
 - registro de workbooks por handles;
 - armazenamento de valores e fórmulas locais;
 - grafo reverso de referências diretas e índice de intervalos em buckets 256×32;
+- índice ordenado de células ocupadas e avaliação esparsa de ranges grandes;
+- agregações simples que ignoram posições vazias sem materializá-las;
+- critérios e buscas por streaming posicional sem buffer denso;
 - cache, detecção de ciclos e invalidação transitiva seletiva;
 - alterações em lote, revisão e lista de afetados;
-- métricas de cache, recálculo, atualizações e arestas;
+- métricas de cache, recálculo, arestas, ranges esparsos, células resolvidas e posições evitadas/percorridas;
 - build para `wasm32-unknown-unknown`, testes diferenciais de IR e execução real do binário na CI;
 - integração no navegador com modos `off`, `shadow` e `prefer`.
 

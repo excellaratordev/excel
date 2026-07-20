@@ -4,14 +4,14 @@ Este crate contém um núcleo funcional e stateful do motor de fórmulas em Rust
 
 ## Estado atual
 
-A ABI versão `5` implementa:
+A ABI versão `6` implementa:
 
 - alocação e desalocação de memória linear;
 - validação estrutural de envelopes JSON;
 - parser e AST próprios;
-- IR JSON de fórmulas versão `1`;
+- IR JSON de fórmulas versão `2`, com referências diretas e retângulos separados;
 - compilação de fórmula para IR em Rust, comparável à IR produzida pelo parser JavaScript;
-- referências A1 e intervalos locais limitados a 4.096 células por fórmula;
+- referências A1 e ranges locais de até 4.096 posições no avaliador stateless e 100.000 no workbook stateful;
 - operadores `+`, `-`, `*`, `/`, `^`, `&`, `%` e comparações;
 - matrizes e broadcasting básico no avaliador stateless;
 - funções `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO`, `CONT.NÚM`, `SE`, `E`, `OU`, `NÃO`, `SEERRO`, `ABS` e `ARRED`;
@@ -23,11 +23,15 @@ A ABI versão `5` implementa:
 - registro de workbooks por handle;
 - armazenamento de valores e fórmulas locais em Rust;
 - grafo reverso para referências diretas e índice de intervalos em buckets 256×32;
+- índice `BTreeMap` das células ocupadas por coordenada;
+- avaliador stateful esparso para ranges acima de 4.096 posições;
+- agregações simples que leem apenas células ocupadas;
+- critérios e buscas que preservam posições em branco sem criar matrizes densas;
 - cache de resultados por célula;
 - invalidação transitiva somente das cadeias afetadas;
 - detecção de ciclos durante a avaliação;
 - aplicação de alterações em lote com revisão e lista de afetados;
-- métricas de cache, recálculo, atualizações e arestas;
+- métricas de cache, recálculo, ranges esparsos, células resolvidas, posições percorridas e materialização evitada;
 - integração experimental no navegador com modos `off`, `shadow` e `prefer`.
 
 ## Modos do navegador
@@ -45,7 +49,7 @@ Exemplo:
 /sheet/123?wasm=prefer
 ```
 
-## ABI versão 5
+## ABI versão 6
 
 Exports stateless:
 
@@ -69,7 +73,7 @@ superexcel_workbook_stats(handle) -> result_pointer
 superexcel_workbook_destroy(handle) -> 0 | 1
 ```
 
-## IR de fórmulas versão 1
+## IR de fórmulas versão 2
 
 Entrada:
 
@@ -82,8 +86,13 @@ Saída simplificada:
 ```json
 {
   "status": "ok",
-  "ir_version": 1,
-  "dependencies": ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"],
+  "ir_version": 2,
+  "dependencies": [],
+  "range_dependencies": [
+    {"top": 0, "bottom": 2, "left": 0, "right": 0},
+    {"top": 0, "bottom": 2, "left": 1, "right": 1},
+    {"top": 0, "bottom": 2, "left": 2, "right": 2}
+  ],
   "ast": {
     "type": "call",
     "name": "SOMASES",
@@ -124,7 +133,7 @@ Resposta:
 }
 ```
 
-Ao consultar uma fórmula, o núcleo reutiliza o cache quando válido, resolve apenas as dependências necessárias, detecta ciclos e invalida somente a célula alterada e seus dependentes transitivos.
+Ao consultar uma fórmula, o núcleo reutiliza o cache quando válido, resolve apenas as dependências necessárias, detecta ciclos e invalida somente a célula alterada e seus dependentes transitivos. Para ranges grandes, `SOMA`, `MÉDIA`, `MÍNIMO`, `MÁXIMO` e `CONT.NÚM` visitam somente células ocupadas. Funções condicionais e buscas preservam índices implícitos em branco por streaming, sem alocar uma matriz com 100.000 elementos.
 
 ## Integração com o runtime JavaScript
 
