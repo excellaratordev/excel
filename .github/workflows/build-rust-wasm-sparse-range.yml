@@ -1,0 +1,70 @@
+name: Build Rust Wasm sparse range
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  build-sparse-range:
+    if: github.head_ref == 'engine/rust-wasm-sparse-range-v5' && github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout sparse range branch
+        uses: actions/checkout@v4
+        with:
+          ref: engine/rust-wasm-sparse-range-v5
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Configure Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          rustup component add rustfmt
+
+      - name: Apply sparse range runtime
+        run: python .phase/apply_sparse_range_runtime.py
+
+      - name: Validate and capture diagnostics
+        run: |
+          set +e
+          {
+            python -m pip install --quiet pytest &&
+            cargo fmt --manifest-path wasm-engine/Cargo.toml &&
+            cargo test --manifest-path wasm-engine/Cargo.toml &&
+            sh scripts/build_wasm.sh &&
+            test -s static/wasm/superexcel_wasm_engine.wasm &&
+            node --check static/js/calculation/formula-parser.js &&
+            node --check static/js/wasm/engine-contract.js &&
+            node --test tests/js/formula-ir.test.js tests/js/platform-foundation.test.js &&
+            node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm &&
+            pytest -q tests/test_wasm_frontend.py
+          } > .phase/sparse-range-validation.log 2>&1
+          status=$?
+          echo "$status" > .phase/sparse-range-validation.exit
+          cat .phase/sparse-range-validation.log
+          exit 0
+
+      - name: Persist generated code and diagnostics
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "build(wasm): persist sparse range runtime and diagnostics"
+          git pull --rebase origin engine/rust-wasm-sparse-range-v5
+          git push origin HEAD:engine/rust-wasm-sparse-range-v5
+
+      - name: Enforce validation result
+        run: test "$(cat .phase/sparse-range-validation.exit)" = "0"
