@@ -8,8 +8,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 mod workbook;
 
-pub const ABI_VERSION: u32 = 4;
-const IR_VERSION: u32 = 1;
+pub const ABI_VERSION: u32 = 5;
+const IR_VERSION: u32 = 2;
 const MAX_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RANGE_CELLS: usize = 4096;
 static LAST_RESULT_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -338,9 +338,46 @@ fn looks_like_thousands(raw: &str) -> bool {
 }
 
 #[derive(Debug, Clone)]
-struct CellReference {
-    row: usize,
-    col: usize,
+pub(crate) struct CellReference {
+    pub(crate) row: usize,
+    pub(crate) col: usize,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) struct CellRange {
+    pub(crate) top: usize,
+    pub(crate) bottom: usize,
+    pub(crate) left: usize,
+    pub(crate) right: usize,
+}
+
+impl CellRange {
+    pub(crate) fn from_references(start: &CellReference, end: &CellReference) -> Self {
+        Self {
+            top: start.row.min(end.row),
+            bottom: start.row.max(end.row),
+            left: start.col.min(end.col),
+            right: start.col.max(end.col),
+        }
+    }
+
+    pub(crate) fn cell_count(&self) -> usize {
+        (self.bottom - self.top + 1).saturating_mul(self.right - self.left + 1)
+    }
+
+    pub(crate) fn contains(&self, reference: &CellReference) -> bool {
+        (self.top..=self.bottom).contains(&reference.row)
+            && (self.left..=self.right).contains(&reference.col)
+    }
+
+    fn to_json(&self) -> JsonValue {
+        json!({
+            "top": self.top,
+            "bottom": self.bottom,
+            "left": self.left,
+            "right": self.right,
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -575,6 +612,34 @@ fn cell_name(reference: &CellReference) -> String {
     format!("{}{}", column_name(reference.col), reference.row + 1)
 }
 
+pub(crate) fn collect_compact_dependencies(
+    ast: &Ast,
+    direct: &mut BTreeSet<String>,
+    ranges: &mut BTreeSet<CellRange>,
+) {
+    match ast {
+        Ast::Reference(reference) => {
+            direct.insert(cell_name(reference));
+        }
+        Ast::Range(start, end) => {
+            ranges.insert(CellRange::from_references(start, end));
+        }
+        Ast::Unary(_, value) | Ast::Percent(value) => {
+            collect_compact_dependencies(value, direct, ranges);
+        }
+        Ast::Binary(_, left, right) => {
+            collect_compact_dependencies(left, direct, ranges);
+            collect_compact_dependencies(right, direct, ranges);
+        }
+        Ast::Call(_, args) => {
+            for arg in args {
+                collect_compact_dependencies(arg, direct, ranges);
+            }
+        }
+        Ast::Literal(_) => {}
+    }
+}
+
 fn collect_dependencies(ast: &Ast, output: &mut BTreeSet<String>) -> Result<(), EngineError> {
     match ast {
         Ast::Reference(reference) => {
@@ -614,6 +679,7 @@ fn collect_dependencies(ast: &Ast, output: &mut BTreeSet<String>) -> Result<(), 
 
 struct Evaluator<'a> {
     cells: &'a HashMap<String, JsonValue>,
+    max_range_cells: usize,
 }
 
 impl<'a> Evaluator<'a> {
@@ -663,9 +729,10 @@ impl<'a> Evaluator<'a> {
         let left = start.col.min(end.col);
         let right = start.col.max(end.col);
         let total = (bottom - top + 1).saturating_mul(right - left + 1);
-        if total > MAX_RANGE_CELLS {
+        if total > self.max_range_cells {
             return Err(EngineError::unsupported(format!(
-                "Intervalo excede o limite experimental de {MAX_RANGE_CELLS} células."
+                "Intervalo excede o limite de {} células para este avaliador.",
+                self.max_range_cells
             )));
         }
         Ok(Value::Array(
@@ -1558,25 +1625,23 @@ fn compile_formula(formula: &str) -> JsonValue {
                 "ir_version": IR_VERSION,
                 "ast": JsonValue::Null,
                 "dependencies": [],
+                "range_dependencies": [],
                 "error": error.message,
             })
         }
     };
     let mut dependencies = BTreeSet::new();
-    if let Err(error) = collect_dependencies(&ast, &mut dependencies) {
-        return json!({
-            "status": if error.unsupported { "unsupported" } else { "error" },
-            "ir_version": IR_VERSION,
-            "ast": ast_to_ir(&ast),
-            "dependencies": dependencies.into_iter().collect::<Vec<_>>(),
-            "error": error.message,
-        });
-    }
+    let mut range_dependencies = BTreeSet::new();
+    collect_compact_dependencies(&ast, &mut dependencies, &mut range_dependencies);
     json!({
         "status": "ok",
         "ir_version": IR_VERSION,
         "ast": ast_to_ir(&ast),
         "dependencies": dependencies.into_iter().collect::<Vec<_>>(),
+        "range_dependencies": range_dependencies
+            .into_iter()
+            .map(|range| range.to_json())
+            .collect::<Vec<_>>(),
         "error": JsonValue::Null,
     })
 }
@@ -1621,6 +1686,7 @@ fn evaluate_request(payload: &str) -> EvaluationResponse {
     }
     match (Evaluator {
         cells: &request.cells,
+        max_range_cells: MAX_RANGE_CELLS,
     })
     .evaluate(&ast)
     {
@@ -1710,6 +1776,7 @@ pub unsafe extern "C" fn superexcel_compile_formula(pointer: *const u8, len: usi
                 "ir_version": IR_VERSION,
                 "ast": JsonValue::Null,
                 "dependencies": [],
+                "range_dependencies": [],
                 "error": "Payload de compilação inválido.",
             })
             .to_string(),
@@ -1780,8 +1847,8 @@ mod tests {
     }
 
     #[test]
-    fn abi_is_version_four() {
-        assert_eq!(superexcel_abi_version(), 4);
+    fn abi_is_version_five() {
+        assert_eq!(superexcel_abi_version(), 5);
     }
 
     #[test]
@@ -1858,7 +1925,7 @@ mod tests {
     fn compiles_versioned_intermediate_representation() {
         let compiled = compile_formula("=SOMASES(D1:D4;A1:A4;\"Pago\")");
         assert_eq!(compiled["status"], json!("ok"));
-        assert_eq!(compiled["ir_version"], json!(1));
+        assert_eq!(compiled["ir_version"], json!(2));
         assert_eq!(compiled["ast"]["type"], json!("call"));
         assert_eq!(compiled["ast"]["name"], json!("SOMASES"));
     }

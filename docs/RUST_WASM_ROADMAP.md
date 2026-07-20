@@ -41,7 +41,7 @@ Critério de saída atingido: alterar `A1` em uma cadeia `A1 -> B1 -> C1` invali
 
 ## Fase 3 — IR compartilhada e funções empresariais
 
-Estado: **implementado nesta entrega**.
+Estado: **implementado**.
 
 - ABI versão 4;
 - IR JSON versão 1 para fórmulas locais;
@@ -57,15 +57,19 @@ Critério de saída atingido: fórmulas locais representativas geram IR semantic
 
 ## Fase 4 — grafo de intervalos grandes
 
-Estado: **planejado**.
+Estado: **implementado nesta entrega**.
 
-- buckets bidimensionais para intervalos grandes;
-- dependências de intervalo sem expansão célula por célula;
-- invalidação por sobreposição de retângulos;
-- operações em lote com buffers compactos;
-- benchmarks específicos de cadeias e agregações empresariais.
+- ABI versão 5 e IR versão 2;
+- referências diretas separadas de retângulos de intervalo;
+- buckets bidimensionais de 256 linhas por 32 colunas;
+- dependências de intervalo sem uma aresta por célula;
+- invalidação por sobreposição exata após seleção de candidatos por bucket;
+- intervalos stateful de até 100.000 posições;
+- métricas separadas de arestas diretas, intervalos e buckets;
+- testes de recálculo transitivo, remoção de índices obsoletos e execução real do Wasm;
+- o índice compacta o grafo, mas a avaliação ainda percorre e materializa as posições do intervalo até o limite stateful.
 
-Critério de saída: fórmulas com grandes intervalos não geram explosão de arestas e mantêm recálculo seletivo mensurável.
+Critério de saída atingido: um intervalo de 100.000 posições usa um descritor de dependência e menos de 512 buckets, preservando recálculo seletivo.
 
 ## Fase 5 — matrizes, spill e referências externas
 

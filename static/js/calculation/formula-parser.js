@@ -376,7 +376,7 @@
   }
 
 
-  const IR_VERSION = 1;
+  const IR_VERSION = 2;
 
   function cellName(row, col) {
     let letters = '';
@@ -431,6 +431,7 @@
           ir_version: IR_VERSION,
           ast: toIntermediateRepresentation(ast),
           dependencies: [],
+          range_dependencies: [],
           error: 'Referências externas ainda não fazem parte da IR local.',
         };
       }
@@ -439,26 +440,28 @@
         const [row, col] = String(key).split(':').map(Number);
         names.add(cellName(row, col));
       }
-      for (const range of dependencies.ranges) {
-        const total = (range.bottom - range.top + 1) * (range.right - range.left + 1);
-        if (total > 4096) {
-          return {
-            status: 'unsupported',
-            ir_version: IR_VERSION,
-            ast: toIntermediateRepresentation(ast),
-            dependencies: [...names].sort(),
-            error: 'Intervalo excede o limite experimental de 4096 células.',
+      const rangeDependencies = [...new Map(
+        dependencies.ranges.map(range => {
+          const descriptor = {
+            top: range.top,
+            bottom: range.bottom,
+            left: range.left,
+            right: range.right,
           };
-        }
-        for (let row = range.top; row <= range.bottom; row += 1) {
-          for (let col = range.left; col <= range.right; col += 1) names.add(cellName(row, col));
-        }
-      }
+          return [`${descriptor.top}:${descriptor.bottom}:${descriptor.left}:${descriptor.right}`, descriptor];
+        }),
+      ).values()].sort((left, right) => (
+        left.top - right.top
+        || left.bottom - right.bottom
+        || left.left - right.left
+        || left.right - right.right
+      ));
       return {
         status: 'ok',
         ir_version: IR_VERSION,
         ast: toIntermediateRepresentation(ast),
         dependencies: [...names].sort(),
+        range_dependencies: rangeDependencies,
         error: null,
       };
     } catch (error) {
@@ -467,6 +470,7 @@
         ir_version: IR_VERSION,
         ast: null,
         dependencies: [],
+        range_dependencies: [],
         error: error?.message || String(error),
       };
     }

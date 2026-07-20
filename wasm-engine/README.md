@@ -4,7 +4,7 @@ Este crate contém um núcleo funcional e stateful do motor de fórmulas em Rust
 
 ## Estado atual
 
-A ABI versão `4` implementa:
+A ABI versão `5` implementa:
 
 - alocação e desalocação de memória linear;
 - validação estrutural de envelopes JSON;
@@ -22,7 +22,7 @@ A ABI versão `4` implementa:
 - resposta JSON tipada com valor, dependências e status;
 - registro de workbooks por handle;
 - armazenamento de valores e fórmulas locais em Rust;
-- grafo reverso de dependências entre células;
+- grafo reverso para referências diretas e índice de intervalos em buckets 256×32;
 - cache de resultados por célula;
 - invalidação transitiva somente das cadeias afetadas;
 - detecção de ciclos durante a avaliação;
@@ -45,7 +45,7 @@ Exemplo:
 /sheet/123?wasm=prefer
 ```
 
-## ABI versão 4
+## ABI versão 5
 
 Exports stateless:
 
@@ -141,7 +141,6 @@ Ainda permanecem no runtime JavaScript:
 - spill autoritativo;
 - undo/redo e transações como fonte oficial do histórico;
 - persistência, snapshots e colaboração;
-- grafo otimizado por buckets para intervalos muito grandes;
 - resultado autoritativo de matrizes no modo `prefer`.
 
 Quando uma fórmula não é suportada, o núcleo retorna `unsupported`; o navegador preserva o resultado JavaScript.
@@ -149,7 +148,8 @@ Quando uma fórmula não é suportada, o núcleo retorna `unsupported`; o navega
 ## Limites de segurança
 
 - até 4 MB por payload ABI;
-- até 4.096 células expandidas por intervalo;
+- até 4.096 posições por intervalo no avaliador stateless;
+- até 100.000 posições por intervalo no workbook stateful;
 - até 100.000 células armazenadas por workbook experimental;
 - até 10.000 alterações por lote.
 

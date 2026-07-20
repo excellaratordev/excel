@@ -119,13 +119,13 @@ Exemplos:
 
 Use `;` como separador de argumentos e `,` como separador decimal.
 
-## Rust/WebAssembly — ABI 4, IR compartilhada e funções empresariais
+## Rust/WebAssembly — ABI 5, IR v2 e índice de intervalos
 
-O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. A ABI 4 também expõe uma representação intermediária JSON versionada, comparável à produzida pelo parser JavaScript.
+O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. A ABI 5 expõe a IR JSON versão 2, na qual referências diretas e retângulos de intervalo são descritos separadamente.
 
 Implementado:
 
-- ABI versão `4` e IR de fórmulas versão `1`;
+- ABI versão `5` e IR de fórmulas versão `2`;
 - parser e AST próprios em Rust;
 - compilação de fórmula para IR pelo JavaScript e pelo Wasm;
 - números, textos, booleanos, referências A1 e intervalos locais;
@@ -135,14 +135,14 @@ Implementado:
 - critérios numéricos, comparadores e curingas `*` e `?`;
 - buscas `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
 - workbooks identificados por handles;
-- grafo reverso de dependências por célula;
+- grafo reverso para referências diretas e índice de intervalos em buckets 256×32;
 - cache de resultados e invalidação transitiva seletiva;
 - detecção de ciclos;
 - alterações em lote, revisão e lista de células afetadas;
 - métricas de cache, recálculo, atualizações e arestas;
 - espelhamento das edições feitas no runtime JavaScript;
 - reconstrução segura do espelho após undo/redo;
-- limite de 4.096 células por intervalo e 100.000 células por workbook experimental;
+- avaliação stateless limitada a 4.096 posições; workbook stateful aceita intervalos de até 100.000 posições;
 - binário versionado em `static/wasm/superexcel_wasm_engine.wasm`;
 - testes diferenciais de IR, testes Rust e execução real do módulo Wasm pelo Node na CI.
 
@@ -162,7 +162,6 @@ Exemplo:
 Ainda permanecem em JavaScript:
 
 - funções de matrizes dinâmicas completas, como `FILTRO`, `ÚNICO` e `CLASSIFICAR`;
-- dependências de intervalos grandes com indexação especializada;
 - referências externas a Bases e Planilhas;
 - spill autoritativo, histórico, persistência, snapshots e colaboração.
 
