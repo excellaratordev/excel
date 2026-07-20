@@ -993,7 +993,7 @@ mod tests {
     fn keeps_unsupported_formulas_for_javascript_fallback() {
         let mut workbook = workbook(json!({
             "A1": 10,
-            "B1": "=FILTRO(C1:C2;D1:D2)",
+            "B1": "=TEXTO(A1;\"0,00\")",
         }));
         let error = workbook.evaluate_cell("B1").unwrap_err();
         assert!(error.unsupported);
