@@ -57,15 +57,18 @@ Critério de saída atingido: fórmulas locais representativas geram IR semantic
 
 ## Fase 4 — grafo de intervalos grandes
 
-Estado: **planejado**.
+Estado: **implementado nesta entrega**.
 
-- buckets bidimensionais para intervalos grandes;
-- dependências de intervalo sem expansão célula por célula;
-- invalidação por sobreposição de retângulos;
-- operações em lote com buffers compactos;
-- benchmarks específicos de cadeias e agregações empresariais.
+- ABI versão 5 e IR versão 2;
+- referências diretas separadas de retângulos de intervalo;
+- buckets bidimensionais de 256 linhas por 32 colunas;
+- dependências de intervalo sem uma aresta por célula;
+- invalidação por sobreposição exata após seleção de candidatos por bucket;
+- intervalos stateful de até 100.000 posições;
+- métricas separadas de arestas diretas, intervalos e buckets;
+- testes de recálculo transitivo, remoção de índices obsoletos e execução real do Wasm.
 
-Critério de saída: fórmulas com grandes intervalos não geram explosão de arestas e mantêm recálculo seletivo mensurável.
+Critério de saída atingido: um intervalo de 100.000 posições usa um descritor de dependência e menos de 512 buckets, preservando recálculo seletivo.
 
 ## Fase 5 — matrizes, spill e referências externas
 

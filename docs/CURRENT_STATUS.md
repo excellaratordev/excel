@@ -162,7 +162,7 @@ Limites atuais relevantes:
 ### Ainda em evolução
 
 - a implementação autoritativa permanece em JavaScript;
-- a IR versão 1 já permite comparar fórmulas locais entre JavaScript e Rust, mas ainda não cobre referências externas nem substitui todas as camadas;
+- a IR versão 2 já permite comparar fórmulas locais e representar intervalos compactamente entre JavaScript e Rust, mas ainda não cobre referências externas nem substitui todas as camadas;
 - a Planilha possui um único caminho de produção: `templates/index.html` → `sheet-bootstrap-v2.js` → `app-v3.js`;
 - o modelo esparso já existe no payload e no runtime, mas alguns fluxos ainda possuem limites menores que os máximos lógicos de 1.000.000 x 10.000;
 - não há evidência de benchmark de produção publicada no repositório que comprove as metas de excelência de `BENCHMARK.md`.
@@ -171,7 +171,7 @@ Limites atuais relevantes:
 
 O crate em `wasm-engine/` implementa atualmente:
 
-- ABI versão 4 e IR de fórmulas versão 1;
+- ABI versão 5 e IR de fórmulas versão 2;
 - alocação e desalocação de memória;
 - validação estrutural de envelopes JSON;
 - parser e AST próprios em Rust;
@@ -184,7 +184,7 @@ O crate em `wasm-engine/` implementa atualmente:
 - `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
 - registro de workbooks por handles;
 - armazenamento de valores e fórmulas locais;
-- grafo reverso de dependências por célula;
+- grafo reverso de referências diretas e índice de intervalos em buckets 256×32;
 - cache, detecção de ciclos e invalidação transitiva seletiva;
 - alterações em lote, revisão e lista de afetados;
 - métricas de cache, recálculo, atualizações e arestas;
@@ -193,7 +193,6 @@ O crate em `wasm-engine/` implementa atualmente:
 
 Ainda não foram migrados para Rust/Wasm:
 
-- dependências de intervalos grandes sem expansão célula por célula;
 - referências externas a Bases e Planilhas;
 - matrizes dinâmicas completas e spill autoritativo;
 - histórico, persistência, snapshots e colaboração.

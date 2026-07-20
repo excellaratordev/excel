@@ -286,18 +286,18 @@ O runtime JavaScript atual fornece parser independente da grade, AST, referênci
 
 O crate `wasm-engine/` é compilado pela CI e contém um núcleo experimental stateful:
 
-- ABI versão 4 e IR de fórmulas versão 1;
+- ABI versão 5 e IR de fórmulas versão 2;
 - parser e AST em Rust;
-- compilação local para IR JSON e testes diferenciais contra o parser JavaScript;
+- compilação local para IR JSON compacta, separando células e retângulos, com testes diferenciais contra o parser JavaScript;
 - avaliação de fórmulas locais básicas, condicionais e de busca;
 - critérios numéricos, operadores e curingas;
 - workbooks identificados por handles;
-- grafo reverso de dependências por célula;
+- grafo reverso de referências diretas e índice de intervalos em buckets 256×32;
 - cache de resultados, detecção de ciclos e invalidação transitiva;
 - alterações em lote, revisão, lista de afetados e métricas;
 - integração `off`, `shadow` e `prefer` com fallback JavaScript.
 
-O grafo Rust atual expande intervalos locais dentro do limite experimental. A IR não cobre referências externas, e o núcleo ainda não substitui matrizes dinâmicas, spill, intervalos grandes indexados, histórico, persistência ou colaboração. JavaScript permanece como referência geral e fallback.
+O grafo Rust não expande intervalos em arestas por célula; ele seleciona candidatos por bucket e confirma a sobreposição exata. A IR não cobre referências externas, e o núcleo ainda não substitui matrizes dinâmicas, spill, intervalos grandes indexados, histórico, persistência ou colaboração. JavaScript permanece como referência geral e fallback.
 
 ## Matriz de maturidade
 
@@ -377,7 +377,7 @@ Uma camada antiga só permanece quando ainda possui consumidor ativo ou contrato
 
 ### 4. Expandir Rust/Wasm com evidência
 
-A base stateful, a IR v1 e as funções empresariais iniciais já existem. A próxima ampliação exige intervalos indexados, matrizes dinâmicas, referências externas, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
+A base stateful, a IR v1 e as funções empresariais iniciais já existem. A próxima ampliação exige buffers compactos, matrizes dinâmicas, referências externas, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
 
 ### 5. Demonstrar desempenho
 

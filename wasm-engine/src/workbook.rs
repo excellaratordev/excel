@@ -1,6 +1,6 @@
 use super::{
-    cell_name, collect_dependencies, parse_cell_reference, write_result, Ast, EngineError,
-    Evaluator, Parser, Value, MAX_PAYLOAD_BYTES,
+    cell_name, collect_compact_dependencies, parse_cell_reference, write_result, Ast, CellRange,
+    CellReference, EngineError, Evaluator, Parser, Value, MAX_PAYLOAD_BYTES,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
@@ -11,6 +11,9 @@ use std::sync::{Mutex, OnceLock};
 
 const MAX_WORKBOOK_CELLS: usize = 100_000;
 const MAX_WORKBOOK_CHANGES: usize = 10_000;
+const MAX_WORKBOOK_RANGE_CELLS: usize = 100_000;
+const RANGE_BUCKET_ROWS: usize = 256;
+const RANGE_BUCKET_COLS: usize = 32;
 
 #[derive(Debug, Deserialize)]
 struct WorkbookCreateRequest {
@@ -29,10 +32,97 @@ struct WorkbookCellRequest {
     cell: String,
 }
 
+#[derive(Debug, Default)]
+struct RangeDependencyIndex {
+    buckets: HashMap<(usize, usize), BTreeSet<String>>,
+    ranges_by_formula: HashMap<String, BTreeSet<CellRange>>,
+}
+
+impl RangeDependencyIndex {
+    fn register(&mut self, formula: &str, ranges: &BTreeSet<CellRange>) {
+        self.unregister(formula);
+        if ranges.is_empty() {
+            return;
+        }
+        for range in ranges {
+            for_each_range_bucket(range, |bucket| {
+                self.buckets
+                    .entry(bucket)
+                    .or_default()
+                    .insert(formula.to_string());
+            });
+        }
+        self.ranges_by_formula
+            .insert(formula.to_string(), ranges.clone());
+    }
+
+    fn unregister(&mut self, formula: &str) {
+        let Some(ranges) = self.ranges_by_formula.remove(formula) else {
+            return;
+        };
+        let mut empty_buckets = Vec::new();
+        for range in &ranges {
+            for_each_range_bucket(range, |bucket| {
+                if let Some(formulas) = self.buckets.get_mut(&bucket) {
+                    formulas.remove(formula);
+                    if formulas.is_empty() {
+                        empty_buckets.push(bucket);
+                    }
+                }
+            });
+        }
+        for bucket in empty_buckets {
+            self.buckets.remove(&bucket);
+        }
+    }
+
+    fn dependents_for_cell(&self, reference: &CellReference) -> BTreeSet<String> {
+        let bucket = (
+            reference.row / RANGE_BUCKET_ROWS,
+            reference.col / RANGE_BUCKET_COLS,
+        );
+        self.buckets
+            .get(&bucket)
+            .into_iter()
+            .flatten()
+            .filter(|formula| {
+                self.ranges_by_formula
+                    .get(*formula)
+                    .is_some_and(|ranges| ranges.iter().any(|range| range.contains(reference)))
+            })
+            .cloned()
+            .collect()
+    }
+
+    fn dependency_count(&self) -> usize {
+        self.ranges_by_formula.values().map(BTreeSet::len).sum()
+    }
+
+    fn bucket_count(&self) -> usize {
+        self.buckets.len()
+    }
+}
+
+fn for_each_range_bucket<F>(range: &CellRange, mut callback: F)
+where
+    F: FnMut((usize, usize)),
+{
+    let top = range.top / RANGE_BUCKET_ROWS;
+    let bottom = range.bottom / RANGE_BUCKET_ROWS;
+    let left = range.left / RANGE_BUCKET_COLS;
+    let right = range.right / RANGE_BUCKET_COLS;
+    for row_bucket in top..=bottom {
+        for col_bucket in left..=right {
+            callback((row_bucket, col_bucket));
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 struct FormulaNode {
     ast: Ast,
-    dependencies: BTreeSet<String>,
+    direct_dependencies: BTreeSet<String>,
+    range_dependencies: BTreeSet<CellRange>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +137,9 @@ struct WorkbookStats {
     stored_cells: usize,
     formula_cells: usize,
     dependency_edges: usize,
+    direct_dependency_edges: usize,
+    range_dependencies: usize,
+    range_buckets: usize,
     cache_entries: usize,
     cache_hits: u64,
     cache_misses: u64,
@@ -60,6 +153,7 @@ struct Workbook {
     raw: HashMap<String, JsonValue>,
     formulas: HashMap<String, FormulaState>,
     reverse_dependencies: HashMap<String, BTreeSet<String>>,
+    range_index: RangeDependencyIndex,
     cache: HashMap<String, Value>,
     revision: u64,
     cache_hits: u64,
@@ -75,6 +169,7 @@ impl Workbook {
             raw: HashMap::new(),
             formulas: HashMap::new(),
             reverse_dependencies: HashMap::new(),
+            range_index: RangeDependencyIndex::default(),
             cache: HashMap::new(),
             revision: 0,
             cache_hits: 0,
@@ -117,31 +212,50 @@ impl Workbook {
 
         let state = match Parser::new(formula).and_then(Parser::parse) {
             Ok(ast) => {
-                let mut dependencies = BTreeSet::new();
-                match collect_dependencies(&ast, &mut dependencies) {
-                    Ok(()) => FormulaState::Ready(FormulaNode { ast, dependencies }),
-                    Err(error) => FormulaState::Failed(error),
+                let mut direct_dependencies = BTreeSet::new();
+                let mut range_dependencies = BTreeSet::new();
+                collect_compact_dependencies(
+                    &ast,
+                    &mut direct_dependencies,
+                    &mut range_dependencies,
+                );
+                if let Some(range) = range_dependencies
+                    .iter()
+                    .find(|range| range.cell_count() > MAX_WORKBOOK_RANGE_CELLS)
+                {
+                    FormulaState::Failed(EngineError::unsupported(format!(
+                        "Intervalo de {} células excede o limite stateful de {MAX_WORKBOOK_RANGE_CELLS}.",
+                        range.cell_count()
+                    )))
+                } else {
+                    FormulaState::Ready(FormulaNode {
+                        ast,
+                        direct_dependencies,
+                        range_dependencies,
+                    })
                 }
             }
             Err(error) => FormulaState::Failed(error),
         };
 
         if let FormulaState::Ready(node) = &state {
-            for dependency in &node.dependencies {
+            for dependency in &node.direct_dependencies {
                 self.reverse_dependencies
                     .entry(dependency.clone())
                     .or_default()
                     .insert(key.clone());
             }
+            self.range_index.register(&key, &node.range_dependencies);
         }
         self.formulas.insert(key, state);
     }
 
     fn remove_formula(&mut self, key: &str) {
         let dependencies = match self.formulas.remove(key) {
-            Some(FormulaState::Ready(node)) => node.dependencies,
+            Some(FormulaState::Ready(node)) => node.direct_dependencies,
             _ => BTreeSet::new(),
         };
+        self.range_index.unregister(key);
         for dependency in dependencies {
             let should_remove = self
                 .reverse_dependencies
@@ -199,11 +313,17 @@ impl Workbook {
         let mut affected = changed.clone();
         let mut pending: VecDeque<String> = changed.iter().cloned().collect();
         while let Some(current) = pending.pop_front() {
-            if let Some(dependents) = self.reverse_dependencies.get(&current) {
-                for dependent in dependents {
-                    if affected.insert(dependent.clone()) {
-                        pending.push_back(dependent.clone());
-                    }
+            let mut dependents = self
+                .reverse_dependencies
+                .get(&current)
+                .cloned()
+                .unwrap_or_default();
+            if let Ok(reference) = parse_cell_reference(&current) {
+                dependents.extend(self.range_index.dependents_for_cell(&reference));
+            }
+            for dependent in dependents {
+                if affected.insert(dependent.clone()) {
+                    pending.push_back(dependent);
                 }
             }
         }
@@ -248,12 +368,36 @@ impl Workbook {
         };
 
         stack.insert(key.to_string());
-        let mut resolved = HashMap::with_capacity(node.dependencies.len());
-        for dependency in &node.dependencies {
+        let mut resolved = HashMap::with_capacity(
+            node.direct_dependencies.len() + node.range_dependencies.len().saturating_mul(16),
+        );
+        let mut visited = HashSet::new();
+        for dependency in &node.direct_dependencies {
+            visited.insert(dependency.clone());
             let value = self.evaluate_cell_inner(dependency, stack)?;
-            resolved.insert(dependency.clone(), value.to_json());
+            if value != Value::Blank {
+                resolved.insert(dependency.clone(), value.to_json());
+            }
         }
-        let result = (Evaluator { cells: &resolved }).evaluate(&node.ast);
+        for range in &node.range_dependencies {
+            for row in range.top..=range.bottom {
+                for col in range.left..=range.right {
+                    let dependency = cell_name(&CellReference { row, col });
+                    if !visited.insert(dependency.clone()) {
+                        continue;
+                    }
+                    let value = self.evaluate_cell_inner(&dependency, stack)?;
+                    if value != Value::Blank {
+                        resolved.insert(dependency, value.to_json());
+                    }
+                }
+            }
+        }
+        let result = (Evaluator {
+            cells: &resolved,
+            max_range_cells: MAX_WORKBOOK_RANGE_CELLS,
+        })
+        .evaluate(&node.ast);
         stack.remove(key);
 
         let value = result?;
@@ -263,11 +407,16 @@ impl Workbook {
     }
 
     fn stats(&self) -> WorkbookStats {
+        let direct_dependency_edges = self.reverse_dependencies.values().map(BTreeSet::len).sum();
+        let range_dependencies = self.range_index.dependency_count();
         WorkbookStats {
             revision: self.revision,
             stored_cells: self.raw.len(),
             formula_cells: self.formulas.len(),
-            dependency_edges: self.reverse_dependencies.values().map(BTreeSet::len).sum(),
+            dependency_edges: direct_dependency_edges + range_dependencies,
+            direct_dependency_edges,
+            range_dependencies,
+            range_buckets: self.range_index.bucket_count(),
             cache_entries: self.cache.len(),
             cache_hits: self.cache_hits,
             cache_misses: self.cache_misses,
@@ -531,6 +680,71 @@ mod tests {
             workbook.evaluate_cell("A1").unwrap().1,
             Value::Error("#CIRC!".into())
         );
+    }
+
+    #[test]
+    fn indexes_large_ranges_without_per_cell_edges() {
+        let mut workbook = workbook(json!({
+            "A1": 1,
+            "A10000": 2,
+            "Z1": "=SOMA(A1:A10000)",
+        }));
+        let stats = workbook.stats();
+        assert_eq!(stats.direct_dependency_edges, 0);
+        assert_eq!(stats.range_dependencies, 1);
+        assert!(stats.range_buckets < 64);
+        assert_eq!(workbook.evaluate_cell("Z1").unwrap().1, Value::Number(3.0));
+
+        let affected = workbook
+            .apply_changes(HashMap::from([("A5000".into(), json!(5))]))
+            .unwrap();
+        assert_eq!(affected, vec!["A5000", "Z1"]);
+        assert_eq!(workbook.evaluate_cell("Z1").unwrap().1, Value::Number(8.0));
+
+        let unrelated = workbook
+            .apply_changes(HashMap::from([("B1".into(), json!(9))]))
+            .unwrap();
+        assert_eq!(unrelated, vec!["B1"]);
+    }
+
+    #[test]
+    fn propagates_large_range_invalidation_transitively() {
+        let mut workbook = workbook(json!({
+            "A1": 1,
+            "A100000": 2,
+            "AA1": "=SOMA(A1:A100000)",
+            "AB1": "=AA1*2",
+        }));
+        assert_eq!(workbook.evaluate_cell("AB1").unwrap().1, Value::Number(6.0));
+        let stats = workbook.stats();
+        assert_eq!(stats.direct_dependency_edges, 1);
+        assert_eq!(stats.range_dependencies, 1);
+        assert!(stats.range_buckets < 512);
+
+        let affected = workbook
+            .apply_changes(HashMap::from([("A50000".into(), json!(7))]))
+            .unwrap();
+        assert_eq!(affected, vec!["A50000", "AA1", "AB1"]);
+        assert_eq!(
+            workbook.evaluate_cell("AB1").unwrap().1,
+            Value::Number(20.0)
+        );
+    }
+
+    #[test]
+    fn removes_stale_range_index_entries_when_formula_changes() {
+        let mut workbook = workbook(json!({
+            "A1": 1,
+            "Z1": "=SOMA(A1:A10000)",
+        }));
+        workbook
+            .apply_changes(HashMap::from([("Z1".into(), json!(10))]))
+            .unwrap();
+        assert_eq!(workbook.stats().range_dependencies, 0);
+        let affected = workbook
+            .apply_changes(HashMap::from([("A1".into(), json!(2))]))
+            .unwrap();
+        assert_eq!(affected, vec!["A1"]);
     }
 
     #[test]

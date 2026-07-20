@@ -12,7 +12,7 @@ const defaultWasm = path.resolve(currentDir, '../../wasm-engine/target/wasm32-un
 const wasmPath = path.resolve(process.argv[2] || defaultWasm);
 const engine = await contract.instantiate(fs.readFileSync(wasmPath));
 
-assert.equal(engine.version, 4);
+assert.equal(engine.version, 5);
 assert.equal(engine.validateOperation({ id: 'op-1', kind: 'cells.patch', changes: [] }), true);
 assert.equal(engine.validateOperation({ kind: 'cells.patch' }), false);
 
@@ -47,9 +47,10 @@ const formula = '=SOMASES(D1:D4;A1:A4;"Pago";B1:B4;">=10")';
 const rustIr = engine.compileFormula(formula);
 const javascriptIr = parser.compile(formula);
 assert.equal(rustIr.status, 'ok');
-assert.equal(rustIr.ir_version, 1);
+assert.equal(rustIr.ir_version, 2);
 assert.deepEqual(rustIr.ast, javascriptIr.ast);
 assert.deepEqual(rustIr.dependencies, javascriptIr.dependencies);
+assert.deepEqual(rustIr.range_dependencies, javascriptIr.range_dependencies);
 
 const unsupported = engine.evaluateFormula('=FILTRO(A1:A2;B1:B2)', {});
 assert.equal(unsupported.status, 'unsupported');
@@ -84,15 +85,34 @@ assert.ok(statsAfter.cache_hits > statsBefore.cache_hits);
 assert.ok(statsAfter.recalculations > statsBefore.recalculations);
 assert.equal(engine.destroyWorkbook(created.handle), true);
 
+const largeWorkbook = engine.createWorkbook({
+  A1: 1,
+  A10000: 2,
+  Z1: '=SOMA(A1:A10000)',
+});
+assert.equal(largeWorkbook.status, 'ok');
+const largeStats = engine.getWorkbookStats(largeWorkbook.handle).stats;
+assert.equal(largeStats.direct_dependency_edges, 0);
+assert.equal(largeStats.range_dependencies, 1);
+assert.ok(largeStats.range_buckets < 64);
+assert.equal(engine.getWorkbookCell(largeWorkbook.handle, 'Z1').value, 3);
+const largeApplied = engine.applyWorkbook(largeWorkbook.handle, { A5000: 5 });
+assert.deepEqual(largeApplied.affected, ['A5000', 'Z1']);
+assert.equal(engine.getWorkbookCell(largeWorkbook.handle, 'Z1').value, 8);
+const unrelatedApplied = engine.applyWorkbook(largeWorkbook.handle, { B1: 9 });
+assert.deepEqual(unrelatedApplied.affected, ['B1']);
+assert.equal(engine.destroyWorkbook(largeWorkbook.handle), true);
+
 console.log(JSON.stringify({
   wasm: 'ok',
   abi: engine.version,
-  tests: 16,
+  tests: 20,
   ir: rustIr.ir_version,
   business: ['SOMASES', 'PROCX'],
   stateful: {
     affected: applied.affected,
     cache_hits: statsAfter.cache_hits,
     recalculations: statsAfter.recalculations,
+    range_buckets: largeStats.range_buckets,
   },
 }));
