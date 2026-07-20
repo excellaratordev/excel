@@ -39,16 +39,41 @@ jobs:
           set +e
           mkdir -p .phase
           {
-            echo "== decode package =="
-            base64 --decode .phase/apply_wasm_business_ir.py.gz.b64 | gzip --decompress > /tmp/apply_wasm_business_ir.py
+            echo "== reconstruct package =="
+            cat .phase/apply_wasm_business_ir.py.gz.b64.00 \
+                .phase/apply_wasm_business_ir.py.gz.b64.01 \
+                .phase/apply_wasm_business_ir.py.gz.b64.02 \
+                .phase/apply_wasm_business_ir.py.gz.b64.03 > /tmp/apply_wasm_business_ir.b64
+            base64 --decode /tmp/apply_wasm_business_ir.b64 > /tmp/apply_wasm_business_ir.py.gz
             decode_status=$?
-            echo "decode_status=$decode_status"
+            echo "base64_status=$decode_status"
             if [ "$decode_status" -eq 0 ]; then
+              echo "5d3c969f32e15583a7088f61330a2afb2eea5f23c35bb855faee34b04ae77894  /tmp/apply_wasm_business_ir.py.gz" | sha256sum --check
+              checksum_status=$?
+            else
+              checksum_status=$decode_status
+            fi
+            echo "gzip_checksum_status=$checksum_status"
+            if [ "$checksum_status" -eq 0 ]; then
+              gzip --decompress --stdout /tmp/apply_wasm_business_ir.py.gz > /tmp/apply_wasm_business_ir.py
+              gzip_status=$?
+            else
+              gzip_status=$checksum_status
+            fi
+            echo "gzip_status=$gzip_status"
+            if [ "$gzip_status" -eq 0 ]; then
+              echo "6193564dba8b0bd6baf0f4c6983a72a00f1c2dcdc6e6fc44756ff362e81722d3  /tmp/apply_wasm_business_ir.py" | sha256sum --check
+              source_status=$?
+            else
+              source_status=$gzip_status
+            fi
+            echo "source_checksum_status=$source_status"
+            if [ "$source_status" -eq 0 ]; then
               echo "== execute patch =="
               python /tmp/apply_wasm_business_ir.py
               status=$?
             else
-              status=$decode_status
+              status=$source_status
             fi
             echo "apply_status=$status"
           } > .phase/apply-business-ir.log 2>&1
