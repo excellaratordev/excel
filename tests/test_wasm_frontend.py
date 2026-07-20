@@ -32,7 +32,11 @@ def test_rust_engine_exposes_formula_and_stateful_workbook_runtime():
     assert "reverse_dependencies" in workbook_source
     assert "collect_affected" in workbook_source
     assert "cache_hits" in workbook_source
-    assert "const ABI_VERSION = 3" in contract
+    assert "const ABI_VERSION = 4" in contract
+    assert "superexcel_compile_formula" in formula_source
+    assert "compileFormula" in contract
+    assert "SOMASES" in formula_source
+    assert "PROCX" in formula_source
     assert "createWorkbook" in contract
     assert "getWorkbookCell" in contract
     assert "applyWorkbook" in bridge

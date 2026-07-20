@@ -13,6 +13,7 @@
     engine: null,
     loadPromise: null,
     evaluations: 0,
+    compilations: 0,
     successes: 0,
     fallbacks: 0,
     mismatches: 0,
@@ -81,6 +82,20 @@
       letters = String.fromCharCode(65 + ((number - 1) % 26)) + letters;
     }
     return `${letters}${Number(row) + 1}`;
+  }
+
+  function compileFormula(formula) {
+    state.compilations += 1;
+    if (!state.engine) {
+      state.fallbacks += 1;
+      return { status: 'unavailable', error: state.error || 'Núcleo Wasm ainda não carregado.' };
+    }
+    try {
+      return state.engine.compileFormula(formula);
+    } catch (error) {
+      state.fallbacks += 1;
+      return { status: 'error', error: error?.message || String(error) };
+    }
   }
 
   function evaluateFormula(formula, cells = {}) {
@@ -194,6 +209,7 @@
       status: state.status,
       abi_version: contract.ABI_VERSION,
       evaluations: state.evaluations,
+      compilations: state.compilations,
       successes: state.successes,
       fallbacks: state.fallbacks,
       mismatches: state.mismatches,
@@ -210,6 +226,7 @@
   const api = Object.freeze({
     ASSET_URL,
     load,
+    compileFormula,
     evaluateFormula,
     createWorkbook,
     applyWorkbook,

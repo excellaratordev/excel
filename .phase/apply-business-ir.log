@@ -1,7 +1,10 @@
-== decode package ==
-
-gzip: stdin: invalid compressed data--crc error
-
-gzip: stdin: invalid compressed data--length error
-decode_status=1
-apply_status=1
+== reconstruct package ==
+base64_status=0
+/tmp/apply_wasm_business_ir.py.gz: OK
+gzip_checksum_status=0
+gzip_status=0
+/tmp/apply_wasm_business_ir.py: OK
+source_checksum_status=0
+== execute patch ==
+Aplicação da fase IR/funções empresariais concluída.
+apply_status=0
