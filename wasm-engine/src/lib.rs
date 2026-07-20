@@ -815,7 +815,6 @@ impl<'a> Evaluator<'a> {
         }
     }
 
-
     fn evaluated_arguments(&self, args: &[Ast]) -> Result<Vec<Value>, EngineError> {
         args.iter().map(|arg| self.evaluate(arg)).collect()
     }
@@ -936,9 +935,10 @@ impl<'a> Evaluator<'a> {
             }
             candidate
         } else {
-            table
-                .iter()
-                .find(|row| row.first().is_some_and(|value| compare_values(value, &lookup) == 0))
+            table.iter().find(|row| {
+                row.first()
+                    .is_some_and(|value| compare_values(value, &lookup) == 0)
+            })
         };
         Ok(selected
             .and_then(|row| row.get(column as usize))
@@ -1098,7 +1098,6 @@ enum Aggregate {
     Count,
 }
 
-
 #[derive(Copy, Clone)]
 enum ConditionalAggregate {
     Sum,
@@ -1138,7 +1137,10 @@ fn criterion_number(value: &Value) -> Option<f64> {
                 return Some(0.0);
             }
             let normalized = raw.replace('.', "").replace(',', ".");
-            normalized.parse::<f64>().ok().filter(|value| value.is_finite())
+            normalized
+                .parse::<f64>()
+                .ok()
+                .filter(|value| value.is_finite())
         }
         _ => None,
     }
@@ -1288,9 +1290,7 @@ fn conditional_aggregate_values(
         .collect();
     match mode {
         ConditionalAggregate::Sum => Ok(Value::Number(numbers.iter().sum())),
-        ConditionalAggregate::Average if numbers.is_empty() => {
-            Ok(Value::Error("#DIV/0!".into()))
-        }
+        ConditionalAggregate::Average if numbers.is_empty() => Ok(Value::Error("#DIV/0!".into())),
         ConditionalAggregate::Average => Ok(Value::Number(
             numbers.iter().sum::<f64>() / numbers.len() as f64,
         )),
@@ -1510,7 +1510,6 @@ fn matrix_value(matrix: &[Vec<Value>], row: usize, col: usize) -> Value {
     values.get(source_col).cloned().unwrap_or(Value::Blank)
 }
 
-
 fn ast_to_ir(ast: &Ast) -> JsonValue {
     match ast {
         Ast::Literal(value) => json!({
@@ -1701,7 +1700,6 @@ pub unsafe extern "C" fn superexcel_validate_operation(pointer: *const u8, len: 
         _ => 0,
     }
 }
-
 
 #[no_mangle]
 pub unsafe extern "C" fn superexcel_compile_formula(pointer: *const u8, len: usize) -> *mut u8 {
