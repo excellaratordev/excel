@@ -151,10 +151,6 @@ struct WorkbookStats {
     cache_misses: u64,
     recalculations: u64,
     updates: u64,
-    sparse_range_evaluations: u64,
-    sparse_cells_resolved: u64,
-    streamed_range_positions: u64,
-    range_positions_avoided: u64,
     last_affected: Vec<String>,
 }
 
@@ -171,6 +167,10 @@ struct Workbook {
     cache_misses: u64,
     recalculations: u64,
     updates: u64,
+    sparse_range_evaluations: u64,
+    sparse_cells_resolved: u64,
+    streamed_range_positions: u64,
+    range_positions_avoided: u64,
     last_affected: Vec<String>,
 }
 
@@ -791,7 +791,7 @@ mod tests {
             "A100000": 20,
             "B1": "Pago",
             "B100000": "Pago",
-            "Z1": "=SOMASES(A1:A100000;B1:B100000;"Pago")",
+            "Z1": "=SOMASES(A1:A100000;B1:B100000;\"Pago\")",
         }));
         assert_eq!(workbook.evaluate_cell("Z1").unwrap().1, Value::Number(30.0));
         let stats = workbook.stats();
