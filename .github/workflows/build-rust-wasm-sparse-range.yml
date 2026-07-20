@@ -35,7 +35,9 @@ jobs:
           rustup component add rustfmt
 
       - name: Apply sparse range runtime
-        run: python .phase/apply_sparse_range_runtime.py
+        run: |
+          python .phase/fix_sparse_applicator.py
+          python .phase/apply_sparse_range_runtime.py
 
       - name: Validate and capture diagnostics
         run: |
