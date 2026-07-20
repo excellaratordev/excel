@@ -18,9 +18,28 @@ text = text.replace(
     "'    assert \"range_index\" in workbook_source\\n    assert \"occupied_cells\" in workbook_source\\n",
     "'    assert \"range_buckets\" in workbook_source\\n    assert \"occupied_cells\" in workbook_source\\n",
 )
-text = text.replace('integration = replace_once(integration, "tests: 19,", "tests: 21,", "Node test count")', 'integration = replace_once(integration, "tests: 20,", "tests: 22,", "Node test count")')
-old = '''    '''  ranges: {\n    descriptors: largeStats.range_dependencies,\n    buckets: largeStats.range_buckets,\n  },''',\n    '''  ranges: {\n    descriptors: largeStats.range_dependencies,\n    buckets: largeStats.range_buckets,\n    sparse_evaluations: sparseStats.sparse_range_evaluations,\n    positions_avoided: sparseStats.range_positions_avoided,\n    streamed_positions: sparseStats.streamed_range_positions,\n  },''','''
-new = '''    '''    range_buckets: largeStats.range_buckets,\n  },''',\n    '''    range_buckets: largeStats.range_buckets,\n    sparse_evaluations: sparseStats.sparse_range_evaluations,\n    positions_avoided: sparseStats.range_positions_avoided,\n    streamed_positions: sparseStats.streamed_range_positions,\n  },''','''
+text = text.replace(
+    'integration = replace_once(integration, "tests: 19,", "tests: 21,", "Node test count")',
+    'integration = replace_once(integration, "tests: 20,", "tests: 22,", "Node test count")',
+)
+old = """    '''  ranges: {
+    descriptors: largeStats.range_dependencies,
+    buckets: largeStats.range_buckets,
+  },''',
+    '''  ranges: {
+    descriptors: largeStats.range_dependencies,
+    buckets: largeStats.range_buckets,
+    sparse_evaluations: sparseStats.sparse_range_evaluations,
+    positions_avoided: sparseStats.range_positions_avoided,
+    streamed_positions: sparseStats.streamed_range_positions,
+  },''',"""
+new = """    '''    range_buckets: largeStats.range_buckets,
+  },''',
+    '''    range_buckets: largeStats.range_buckets,
+    sparse_evaluations: sparseStats.sparse_range_evaluations,
+    positions_avoided: sparseStats.range_positions_avoided,
+    streamed_positions: sparseStats.streamed_range_positions,
+  },''',"""
 if old not in text:
     raise RuntimeError("integration output marker not found in applicator")
 text = text.replace(old, new, 1)
