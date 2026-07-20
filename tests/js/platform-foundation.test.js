@@ -30,4 +30,4 @@ test('simulação R1-R5 não perde operações e usa recuperação por delta', (
   assert.equal(result.scenarios.R5.snapshot_required, false);
 });
 
-test('runtime stateful Rust/Wasm usa ABI 3', () => assert.equal(ABI_VERSION, 3));
+test('runtime Rust/Wasm com IR compartilhada usa ABI 4', () => assert.equal(ABI_VERSION, 4));

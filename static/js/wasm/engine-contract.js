@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ABI_VERSION = 3;
+  const ABI_VERSION = 4;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
@@ -27,6 +27,7 @@
       'superexcel_dealloc',
       'superexcel_validate_operation',
       'superexcel_evaluate_formula',
+      'superexcel_compile_formula',
       'superexcel_last_result_len',
       'superexcel_workbook_create',
       'superexcel_workbook_apply',
@@ -83,6 +84,12 @@
       ));
     }
 
+    function compileFormula(formula) {
+      return withPayload({ formula }, (pointer, length) => (
+        readJsonResult(exports.superexcel_compile_formula(pointer, length))
+      ));
+    }
+
     function createWorkbook(requestOrCells = {}) {
       const request = requestOrCells && Object.prototype.hasOwnProperty.call(requestOrCells, 'cells')
         ? requestOrCells
@@ -121,6 +128,7 @@
       version,
       validateOperation,
       evaluateFormula,
+      compileFormula,
       createWorkbook,
       applyWorkbook,
       getWorkbookCell,

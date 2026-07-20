@@ -375,12 +375,114 @@
     return { cells, ranges, external, sources };
   }
 
-  window.SuperExcelFormulaParser = Object.freeze({
+
+  const IR_VERSION = 1;
+
+  function cellName(row, col) {
+    let letters = '';
+    for (let number = Number(col) + 1; number > 0; number = Math.floor((number - 1) / 26)) {
+      letters = String.fromCharCode(65 + ((number - 1) % 26)) + letters;
+    }
+    return `${letters}${Number(row) + 1}`;
+  }
+
+  function toIntermediateRepresentation(ast) {
+    if (!ast || typeof ast !== 'object') return ast;
+    switch (ast.type) {
+      case 'literal':
+        return { type: 'literal', value: ast.value };
+      case 'reference':
+        return { type: 'reference', row: ast.row, col: ast.col };
+      case 'range':
+        return {
+          type: 'range',
+          start: { row: ast.start.row, col: ast.start.col },
+          end: { row: ast.end.row, col: ast.end.col },
+        };
+      case 'unary':
+        return { type: 'unary', operator: ast.operator, value: toIntermediateRepresentation(ast.value) };
+      case 'percent':
+        return { type: 'percent', value: toIntermediateRepresentation(ast.value) };
+      case 'binary':
+        return {
+          type: 'binary',
+          operator: ast.operator,
+          left: toIntermediateRepresentation(ast.left),
+          right: toIntermediateRepresentation(ast.right),
+        };
+      case 'call':
+        return {
+          type: 'call',
+          name: normalizeFunctionName(ast.name),
+          args: (ast.args || []).map(toIntermediateRepresentation),
+        };
+      default:
+        return null;
+    }
+  }
+
+  function compile(formula) {
+    try {
+      const ast = parse(formula);
+      const dependencies = collectDependencies(ast);
+      if (dependencies.external.length) {
+        return {
+          status: 'unsupported',
+          ir_version: IR_VERSION,
+          ast: toIntermediateRepresentation(ast),
+          dependencies: [],
+          error: 'Referências externas ainda não fazem parte da IR local.',
+        };
+      }
+      const names = new Set();
+      for (const key of dependencies.cells) {
+        const [row, col] = String(key).split(':').map(Number);
+        names.add(cellName(row, col));
+      }
+      for (const range of dependencies.ranges) {
+        const total = (range.bottom - range.top + 1) * (range.right - range.left + 1);
+        if (total > 4096) {
+          return {
+            status: 'unsupported',
+            ir_version: IR_VERSION,
+            ast: toIntermediateRepresentation(ast),
+            dependencies: [...names].sort(),
+            error: 'Intervalo excede o limite experimental de 4096 células.',
+          };
+        }
+        for (let row = range.top; row <= range.bottom; row += 1) {
+          for (let col = range.left; col <= range.right; col += 1) names.add(cellName(row, col));
+        }
+      }
+      return {
+        status: 'ok',
+        ir_version: IR_VERSION,
+        ast: toIntermediateRepresentation(ast),
+        dependencies: [...names].sort(),
+        error: null,
+      };
+    } catch (error) {
+      return {
+        status: 'error',
+        ir_version: IR_VERSION,
+        ast: null,
+        dependencies: [],
+        error: error?.message || String(error),
+      };
+    }
+  }
+
+  const api = Object.freeze({
     FormulaSyntaxError,
+    IR_VERSION,
     collectDependencies,
+    compile,
     normalizeFunctionName,
     normalizeSourceName,
     parse,
     parseCellReference,
+    toIntermediateRepresentation,
   });
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.SuperExcelFormulaParser = api;
 })();

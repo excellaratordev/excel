@@ -21,7 +21,7 @@ Critério de saída atingido: fórmulas suportadas são executadas pelo binário
 
 ## Fase 2 — workbook stateful, grafo e cache
 
-Estado: **implementado nesta entrega**.
+Estado: **implementado**.
 
 - ABI versão 3;
 - workbooks identificados por handles;
@@ -39,31 +39,33 @@ Estado: **implementado nesta entrega**.
 
 Critério de saída atingido: alterar `A1` em uma cadeia `A1 -> B1 -> C1` invalida apenas `A1`, `B1` e `C1`, preservando fórmulas independentes no cache.
 
-## Fase 3 — representação intermediária compartilhada
+## Fase 3 — IR compartilhada e funções empresariais
 
-Estado: **planejado**.
+Estado: **implementado nesta entrega**.
 
-- definir IR compacta e versionada;
-- serializar AST JavaScript para comparação durante a migração;
-- eliminar diferenças de coerção e localização;
-- catálogo único de funções e aliases;
-- suíte extensa de paridade por fórmula;
-- reduzir parsing duplicado entre JavaScript e Rust.
+- ABI versão 4;
+- IR JSON versão 1 para fórmulas locais;
+- compilação da mesma fórmula pelo parser JavaScript e pelo parser Rust;
+- suíte diferencial para estrutura, aliases e dependências;
+- `CONT.SE`, `CONT.SES`, `SOMASE`, `SOMASES`, `MÉDIASE` e `MÉDIASES`;
+- critérios numéricos, operadores de comparação e curingas `*`/`?`;
+- `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
+- uso das novas funções pelo workbook stateful e seu cache incremental;
+- retorno `unsupported` preservado para funções ainda não migradas.
 
-Critério de saída: parser Rust e JavaScript produzem árvores semanticamente equivalentes e o catálogo possui uma única fonte de verdade.
+Critério de saída atingido: fórmulas locais representativas geram IR semanticamente equivalente em JavaScript e Rust, e funções empresariais comuns executam pelo binário Wasm e pelo workbook stateful.
 
-## Fase 4 — grafo de intervalos e funções empresariais
+## Fase 4 — grafo de intervalos grandes
 
 Estado: **planejado**.
 
 - buckets bidimensionais para intervalos grandes;
 - dependências de intervalo sem expansão célula por célula;
-- `SOMASE`, `SOMASES`, `CONT.SE`, `CONT.SES`, `MÉDIASE` e `MÉDIASES`;
-- `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
-- critérios, curingas e coerção compatível com o runtime atual;
-- benchmarks específicos de cadeias empresariais.
+- invalidação por sobreposição de retângulos;
+- operações em lote com buffers compactos;
+- benchmarks específicos de cadeias e agregações empresariais.
 
-Critério de saída: fórmulas empresariais comuns operam no workbook Rust sem fallback frequente e sem explosão de arestas em intervalos grandes.
+Critério de saída: fórmulas com grandes intervalos não geram explosão de arestas e mantêm recálculo seletivo mensurável.
 
 ## Fase 5 — matrizes, spill e referências externas
 
@@ -73,6 +75,7 @@ Estado: **planejado**.
 - broadcasting completo;
 - spill e conflitos de área;
 - referências externas a Bases e Planilhas;
+- IR com origem externa, revisão e tipos especializados;
 - valores tipados e buffers compactos;
 - invalidação seletiva de fontes externas por revisão.
 
@@ -101,3 +104,4 @@ Critério de saída: metas de `BENCHMARK.md` atingidas, cobertura funcional sufi
 5. A ABI só muda com incremento de versão e adaptação simultânea do navegador.
 6. O modo padrão permanece `off` até haver evidência de paridade e ganho mensurável.
 7. Matrizes não se tornam autoritativas enquanto spill e conflitos não estiverem implementados no núcleo.
+8. A IR só se torna contrato de produção após cobrir referências externas e tipos especializados.

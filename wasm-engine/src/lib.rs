@@ -8,7 +8,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 mod workbook;
 
-pub const ABI_VERSION: u32 = 3;
+pub const ABI_VERSION: u32 = 4;
+const IR_VERSION: u32 = 1;
 const MAX_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RANGE_CELLS: usize = 4096;
 static LAST_RESULT_LEN: AtomicUsize = AtomicUsize::new(0);
@@ -40,6 +41,11 @@ struct EvaluationRequest {
     formula: String,
     #[serde(default)]
     cells: HashMap<String, JsonValue>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CompileRequest {
+    formula: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -509,7 +515,21 @@ impl Parser {
 }
 
 fn normalize_function_name(value: &str) -> String {
-    value.trim().to_uppercase().replace('.', "")
+    value
+        .trim()
+        .to_uppercase()
+        .chars()
+        .filter_map(|character| match character {
+            '.' => None,
+            'Á' | 'À' | 'Â' | 'Ã' | 'Ä' => Some('A'),
+            'É' | 'È' | 'Ê' | 'Ë' => Some('E'),
+            'Í' | 'Ì' | 'Î' | 'Ï' => Some('I'),
+            'Ó' | 'Ò' | 'Ô' | 'Õ' | 'Ö' => Some('O'),
+            'Ú' | 'Ù' | 'Û' | 'Ü' => Some('U'),
+            'Ç' => Some('C'),
+            other => Some(other),
+        })
+        .collect()
 }
 
 fn parse_cell_reference(value: &str) -> Result<CellReference, EngineError> {
@@ -747,7 +767,19 @@ impl<'a> Evaluator<'a> {
             "MEDIA" | "MÉDIA" | "AVERAGE" => self.aggregate(args, Aggregate::Average),
             "MINIMO" | "MÍNIMO" | "MIN" => self.aggregate(args, Aggregate::Min),
             "MAXIMO" | "MÁXIMO" | "MAX" => self.aggregate(args, Aggregate::Max),
-            "CONTNUM" | "CONTNÚM" | "COUNT" => self.aggregate(args, Aggregate::Count),
+            "CONTNUM" | "COUNT" => self.aggregate(args, Aggregate::Count),
+            "CONTSE" | "COUNTIF" => self.count_ifs(args),
+            "CONTSES" | "COUNTIFS" => self.count_ifs(args),
+            "SOMASE" | "SUMIF" => self.sum_if(args),
+            "SOMASES" | "SUMIFS" => self.conditional_aggregate(args, ConditionalAggregate::Sum),
+            "MEDIASE" | "AVERAGEIF" => self.average_if(args),
+            "MEDIASES" | "AVERAGEIFS" => {
+                self.conditional_aggregate(args, ConditionalAggregate::Average)
+            }
+            "PROCV" | "VLOOKUP" => self.vlookup(args),
+            "PROCX" | "XLOOKUP" => self.xlookup(args),
+            "INDICE" | "INDEX" => self.index_function(args),
+            "CORRESP" | "MATCH" => self.match_function(args),
             "ABS" => {
                 let value = self.evaluate(
                     args.first()
@@ -781,6 +813,238 @@ impl<'a> Evaluator<'a> {
                 "Função ainda não implementada em Rust/Wasm: {name}"
             ))),
         }
+    }
+
+    fn evaluated_arguments(&self, args: &[Ast]) -> Result<Vec<Value>, EngineError> {
+        args.iter().map(|arg| self.evaluate(arg)).collect()
+    }
+
+    fn count_ifs(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.is_empty() || args.len() % 2 != 0 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let evaluated = self.evaluated_arguments(args)?;
+        let mut ranges = Vec::new();
+        let mut criteria = Vec::new();
+        let mut expected_len = None;
+        for pair in evaluated.chunks_exact(2) {
+            let range = flatten_owned(pair[0].clone());
+            if let Some(length) = expected_len {
+                if range.len() != length {
+                    return Ok(Value::Error("#VALOR!".into()));
+                }
+            } else {
+                expected_len = Some(range.len());
+            }
+            ranges.push(range);
+            criteria.push(first_scalar(pair[1].clone()));
+        }
+        let length = expected_len.unwrap_or(0);
+        let count = (0..length)
+            .filter(|index| {
+                ranges
+                    .iter()
+                    .zip(criteria.iter())
+                    .all(|(range, criterion)| matches_criterion(&range[*index], criterion))
+            })
+            .count();
+        Ok(Value::Number(count as f64))
+    }
+
+    fn sum_if(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.len() < 2 || args.len() > 3 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let criteria_range = self.evaluate(&args[0])?;
+        let criterion = self.evaluate(&args[1])?;
+        let sum_range = if let Some(range) = args.get(2) {
+            self.evaluate(range)?
+        } else {
+            criteria_range.clone()
+        };
+        conditional_aggregate_values(
+            sum_range,
+            vec![(criteria_range, criterion)],
+            ConditionalAggregate::Sum,
+        )
+    }
+
+    fn average_if(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.len() < 2 || args.len() > 3 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let criteria_range = self.evaluate(&args[0])?;
+        let criterion = self.evaluate(&args[1])?;
+        let average_range = if let Some(range) = args.get(2) {
+            self.evaluate(range)?
+        } else {
+            criteria_range.clone()
+        };
+        conditional_aggregate_values(
+            average_range,
+            vec![(criteria_range, criterion)],
+            ConditionalAggregate::Average,
+        )
+    }
+
+    fn conditional_aggregate(
+        &self,
+        args: &[Ast],
+        mode: ConditionalAggregate,
+    ) -> Result<Value, EngineError> {
+        if args.len() < 3 || args.len() % 2 == 0 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let values = self.evaluate(&args[0])?;
+        let mut criteria = Vec::new();
+        for pair in args[1..].chunks_exact(2) {
+            criteria.push((self.evaluate(&pair[0])?, self.evaluate(&pair[1])?));
+        }
+        conditional_aggregate_values(values, criteria, mode)
+    }
+
+    fn vlookup(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.len() < 3 || args.len() > 4 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let lookup = first_scalar(self.evaluate(&args[0])?);
+        let table = to_matrix(self.evaluate(&args[1])?);
+        let column = to_number(&first_scalar(self.evaluate(&args[2])?))?.trunc() as isize - 1;
+        if column < 0 || table.iter().any(|row| column as usize >= row.len()) {
+            return Ok(Value::Error("#REF!".into()));
+        }
+        let approximate = args
+            .get(3)
+            .map(|arg| self.evaluate(arg))
+            .transpose()?
+            .map(first_scalar)
+            .map(|value| truthy(&value))
+            .transpose()?
+            .unwrap_or(true);
+        let selected = if approximate {
+            let mut candidate = None;
+            for row in &table {
+                if row
+                    .first()
+                    .is_some_and(|value| compare_values(value, &lookup) <= 0)
+                {
+                    candidate = Some(row);
+                } else {
+                    break;
+                }
+            }
+            candidate
+        } else {
+            table.iter().find(|row| {
+                row.first()
+                    .is_some_and(|value| compare_values(value, &lookup) == 0)
+            })
+        };
+        Ok(selected
+            .and_then(|row| row.get(column as usize))
+            .cloned()
+            .unwrap_or(Value::Error("#N/D".into())))
+    }
+
+    fn xlookup(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.len() < 3 || args.len() > 4 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let lookup = first_scalar(self.evaluate(&args[0])?);
+        let lookup_values = flatten_owned(self.evaluate(&args[1])?);
+        let return_values = flatten_owned(self.evaluate(&args[2])?);
+        let fallback = args
+            .get(3)
+            .map(|arg| self.evaluate(arg))
+            .transpose()?
+            .map(first_scalar)
+            .unwrap_or(Value::Error("#N/D".into()));
+        let index = lookup_values
+            .iter()
+            .position(|value| compare_values(value, &lookup) == 0);
+        Ok(index
+            .and_then(|index| return_values.get(index).cloned())
+            .unwrap_or(fallback))
+    }
+
+    fn index_function(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.is_empty() || args.len() > 3 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let matrix = to_matrix(self.evaluate(&args[0])?);
+        let row = args
+            .get(1)
+            .map(|arg| self.evaluate(arg))
+            .transpose()?
+            .map(first_scalar)
+            .map(|value| to_number(&value))
+            .transpose()?
+            .unwrap_or(1.0)
+            .trunc() as isize
+            - 1;
+        let column = args
+            .get(2)
+            .map(|arg| self.evaluate(arg))
+            .transpose()?
+            .map(first_scalar)
+            .map(|value| to_number(&value))
+            .transpose()?
+            .unwrap_or(1.0)
+            .trunc() as isize
+            - 1;
+        if row < 0 || column < 0 {
+            return Ok(Value::Error("#REF!".into()));
+        }
+        Ok(matrix
+            .get(row as usize)
+            .and_then(|values| values.get(column as usize))
+            .cloned()
+            .unwrap_or(Value::Error("#REF!".into())))
+    }
+
+    fn match_function(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.len() < 2 || args.len() > 3 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let lookup = first_scalar(self.evaluate(&args[0])?);
+        let values = flatten_owned(self.evaluate(&args[1])?);
+        let match_type = args
+            .get(2)
+            .map(|arg| self.evaluate(arg))
+            .transpose()?
+            .map(first_scalar)
+            .map(|value| to_number(&value))
+            .transpose()?
+            .unwrap_or(1.0)
+            .trunc() as i32;
+        let index = if match_type == 0 {
+            values
+                .iter()
+                .position(|value| compare_values(value, &lookup) == 0)
+        } else {
+            let mut candidate = None;
+            if match_type > 0 {
+                for (index, value) in values.iter().enumerate() {
+                    if compare_values(value, &lookup) <= 0 {
+                        candidate = Some(index);
+                    } else {
+                        break;
+                    }
+                }
+            } else {
+                for (index, value) in values.iter().enumerate() {
+                    if compare_values(value, &lookup) >= 0 {
+                        candidate = Some(index);
+                    } else {
+                        break;
+                    }
+                }
+            }
+            candidate
+        };
+        Ok(index
+            .map(|index| Value::Number((index + 1) as f64))
+            .unwrap_or(Value::Error("#N/D".into())))
     }
 
     fn aggregate(&self, args: &[Ast], mode: Aggregate) -> Result<Value, EngineError> {
@@ -832,6 +1096,205 @@ enum Aggregate {
     Min,
     Max,
     Count,
+}
+
+#[derive(Copy, Clone)]
+enum ConditionalAggregate {
+    Sum,
+    Average,
+}
+
+fn first_scalar(value: Value) -> Value {
+    match value {
+        Value::Array(rows) => rows
+            .into_iter()
+            .next()
+            .and_then(|row| row.into_iter().next())
+            .unwrap_or(Value::Blank),
+        value => value,
+    }
+}
+
+fn flatten_owned(value: Value) -> Vec<Value> {
+    let mut output = Vec::new();
+    value.flatten(&mut output);
+    output
+}
+
+fn to_matrix(value: Value) -> Vec<Vec<Value>> {
+    match value {
+        Value::Array(rows) => rows,
+        value => vec![vec![value]],
+    }
+}
+
+fn criterion_number(value: &Value) -> Option<f64> {
+    match value {
+        Value::Number(value) if value.is_finite() => Some(*value),
+        Value::Text(value) => {
+            let raw = value.trim();
+            if raw.is_empty() {
+                return Some(0.0);
+            }
+            let normalized = raw.replace('.', "").replace(',', ".");
+            normalized
+                .parse::<f64>()
+                .ok()
+                .filter(|value| value.is_finite())
+        }
+        _ => None,
+    }
+}
+
+fn values_equal_strict(left: &Value, right: &Value) -> bool {
+    match (left, right) {
+        (Value::Blank, Value::Blank) => true,
+        (Value::Number(left), Value::Number(right)) => left == right,
+        (Value::Boolean(left), Value::Boolean(right)) => left == right,
+        (Value::Text(left), Value::Text(right)) => left == right,
+        (Value::Error(left), Value::Error(right)) => left == right,
+        _ => false,
+    }
+}
+
+#[derive(Clone, Copy)]
+enum WildcardToken {
+    AnyMany,
+    AnyOne,
+    Literal(char),
+}
+
+fn wildcard_matches(pattern: &str, value: &str) -> bool {
+    let mut tokens = Vec::new();
+    let mut escaped = false;
+    for character in pattern.to_lowercase().chars() {
+        if escaped {
+            tokens.push(WildcardToken::Literal(character));
+            escaped = false;
+            continue;
+        }
+        match character {
+            '~' => escaped = true,
+            '*' => tokens.push(WildcardToken::AnyMany),
+            '?' => tokens.push(WildcardToken::AnyOne),
+            other => tokens.push(WildcardToken::Literal(other)),
+        }
+    }
+    if escaped {
+        tokens.push(WildcardToken::Literal('~'));
+    }
+
+    let characters: Vec<char> = value.to_lowercase().chars().collect();
+    let mut previous = vec![false; characters.len() + 1];
+    previous[0] = true;
+    for token in tokens {
+        let mut current = vec![false; characters.len() + 1];
+        match token {
+            WildcardToken::AnyMany => {
+                current[0] = previous[0];
+                for index in 1..=characters.len() {
+                    current[index] = previous[index] || current[index - 1];
+                }
+            }
+            WildcardToken::AnyOne => {
+                for index in 1..=characters.len() {
+                    current[index] = previous[index - 1];
+                }
+            }
+            WildcardToken::Literal(expected) => {
+                for index in 1..=characters.len() {
+                    current[index] = previous[index - 1] && characters[index - 1] == expected;
+                }
+            }
+        }
+        previous = current;
+    }
+    previous[characters.len()]
+}
+
+fn matches_criterion(value: &Value, criterion: &Value) -> bool {
+    let Value::Text(raw_criterion) = criterion else {
+        return values_equal_strict(value, criterion);
+    };
+    let operators = ["<=", ">=", "<>", "=", "<", ">"];
+    let (operator, expected) = operators
+        .iter()
+        .find_map(|operator| {
+            raw_criterion
+                .strip_prefix(operator)
+                .map(|expected| (*operator, expected))
+        })
+        .unwrap_or(("=", raw_criterion.as_str()));
+
+    if operator == "=" && (expected.contains('*') || expected.contains('?')) {
+        return wildcard_matches(expected, &value_as_text(value));
+    }
+
+    let left_number = criterion_number(value);
+    let right_number = criterion_number(&Value::Text(expected.to_string()));
+    let comparison = match (left_number, right_number) {
+        (Some(left), Some(right)) => left.partial_cmp(&right),
+        _ => value_as_text(value)
+            .to_lowercase()
+            .partial_cmp(&expected.to_lowercase()),
+    };
+    let Some(comparison) = comparison else {
+        return false;
+    };
+    match operator {
+        "<>" => comparison != std::cmp::Ordering::Equal,
+        "<" => comparison == std::cmp::Ordering::Less,
+        ">" => comparison == std::cmp::Ordering::Greater,
+        "<=" => comparison != std::cmp::Ordering::Greater,
+        ">=" => comparison != std::cmp::Ordering::Less,
+        _ => comparison == std::cmp::Ordering::Equal,
+    }
+}
+
+fn conditional_aggregate_values(
+    values: Value,
+    criteria: Vec<(Value, Value)>,
+    mode: ConditionalAggregate,
+) -> Result<Value, EngineError> {
+    let values = flatten_owned(values);
+    let mut criteria_ranges = Vec::new();
+    let mut criteria_values = Vec::new();
+    for (range, criterion) in criteria {
+        let range = flatten_owned(range);
+        if range.len() != values.len() {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        criteria_ranges.push(range);
+        criteria_values.push(first_scalar(criterion));
+    }
+    let accepted: Vec<Value> = values
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, value)| {
+            criteria_ranges
+                .iter()
+                .zip(criteria_values.iter())
+                .all(|(range, criterion)| matches_criterion(&range[index], criterion))
+                .then_some(value)
+        })
+        .collect();
+    if let Some(error) = accepted.iter().find_map(Value::first_error) {
+        return Ok(error);
+    }
+    let numbers: Vec<f64> = accepted
+        .into_iter()
+        .filter_map(|value| match value {
+            Value::Number(value) if value.is_finite() => Some(value),
+            _ => None,
+        })
+        .collect();
+    match mode {
+        ConditionalAggregate::Sum => Ok(Value::Number(numbers.iter().sum())),
+        ConditionalAggregate::Average if numbers.is_empty() => Ok(Value::Error("#DIV/0!".into())),
+        ConditionalAggregate::Average => Ok(Value::Number(
+            numbers.iter().sum::<f64>() / numbers.len() as f64,
+        )),
+    }
 }
 
 fn to_number(value: &Value) -> Result<f64, EngineError> {
@@ -1047,6 +1510,77 @@ fn matrix_value(matrix: &[Vec<Value>], row: usize, col: usize) -> Value {
     values.get(source_col).cloned().unwrap_or(Value::Blank)
 }
 
+fn ast_to_ir(ast: &Ast) -> JsonValue {
+    match ast {
+        Ast::Literal(value) => json!({
+            "type": "literal",
+            "value": value.to_json(),
+        }),
+        Ast::Reference(reference) => json!({
+            "type": "reference",
+            "row": reference.row,
+            "col": reference.col,
+        }),
+        Ast::Range(start, end) => json!({
+            "type": "range",
+            "start": {"row": start.row, "col": start.col},
+            "end": {"row": end.row, "col": end.col},
+        }),
+        Ast::Unary(operator, value) => json!({
+            "type": "unary",
+            "operator": operator,
+            "value": ast_to_ir(value),
+        }),
+        Ast::Percent(value) => json!({
+            "type": "percent",
+            "value": ast_to_ir(value),
+        }),
+        Ast::Binary(operator, left, right) => json!({
+            "type": "binary",
+            "operator": operator,
+            "left": ast_to_ir(left),
+            "right": ast_to_ir(right),
+        }),
+        Ast::Call(name, args) => json!({
+            "type": "call",
+            "name": name,
+            "args": args.iter().map(ast_to_ir).collect::<Vec<_>>(),
+        }),
+    }
+}
+
+fn compile_formula(formula: &str) -> JsonValue {
+    let ast = match Parser::new(formula).and_then(Parser::parse) {
+        Ok(ast) => ast,
+        Err(error) => {
+            return json!({
+                "status": if error.unsupported { "unsupported" } else { "error" },
+                "ir_version": IR_VERSION,
+                "ast": JsonValue::Null,
+                "dependencies": [],
+                "error": error.message,
+            })
+        }
+    };
+    let mut dependencies = BTreeSet::new();
+    if let Err(error) = collect_dependencies(&ast, &mut dependencies) {
+        return json!({
+            "status": if error.unsupported { "unsupported" } else { "error" },
+            "ir_version": IR_VERSION,
+            "ast": ast_to_ir(&ast),
+            "dependencies": dependencies.into_iter().collect::<Vec<_>>(),
+            "error": error.message,
+        });
+    }
+    json!({
+        "status": "ok",
+        "ir_version": IR_VERSION,
+        "ast": ast_to_ir(&ast),
+        "dependencies": dependencies.into_iter().collect::<Vec<_>>(),
+        "error": JsonValue::Null,
+    })
+}
+
 pub fn validate_operation_json(payload: &str) -> bool {
     if payload.len() > MAX_PAYLOAD_BYTES {
         return false;
@@ -1168,6 +1702,43 @@ pub unsafe extern "C" fn superexcel_validate_operation(pointer: *const u8, len: 
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn superexcel_compile_formula(pointer: *const u8, len: usize) -> *mut u8 {
+    if pointer.is_null() || len == 0 || len > MAX_PAYLOAD_BYTES {
+        return write_result(
+            json!({
+                "status": "error",
+                "ir_version": IR_VERSION,
+                "ast": JsonValue::Null,
+                "dependencies": [],
+                "error": "Payload de compilação inválido.",
+            })
+            .to_string(),
+        );
+    }
+    let bytes = slice::from_raw_parts(pointer, len);
+    let response = match str::from_utf8(bytes) {
+        Ok(payload) => match serde_json::from_str::<CompileRequest>(payload) {
+            Ok(request) => compile_formula(&request.formula),
+            Err(error) => json!({
+                "status": "error",
+                "ir_version": IR_VERSION,
+                "ast": JsonValue::Null,
+                "dependencies": [],
+                "error": format!("Envelope de compilação inválido: {error}"),
+            }),
+        },
+        Err(_) => json!({
+            "status": "error",
+            "ir_version": IR_VERSION,
+            "ast": JsonValue::Null,
+            "dependencies": [],
+            "error": "Payload não está em UTF-8.",
+        }),
+    };
+    write_result(response.to_string())
+}
+
+#[no_mangle]
 pub unsafe extern "C" fn superexcel_evaluate_formula(pointer: *const u8, len: usize) -> *mut u8 {
     if pointer.is_null() || len == 0 || len > MAX_PAYLOAD_BYTES {
         return write_result(
@@ -1209,8 +1780,8 @@ mod tests {
     }
 
     #[test]
-    fn abi_is_version_three() {
-        assert_eq!(superexcel_abi_version(), 3);
+    fn abi_is_version_four() {
+        assert_eq!(superexcel_abi_version(), 4);
     }
 
     #[test]
@@ -1246,8 +1817,55 @@ mod tests {
     }
 
     #[test]
+    fn evaluates_conditional_business_functions() {
+        let response = evaluate(
+            "=SOMASES(D1:D4;A1:A4;\"Pago\";B1:B4;\">=10\")",
+            json!({
+                "A1": "Pago", "A2": "Pendente", "A3": "Pago", "A4": "Pago",
+                "B1": 10, "B2": 20, "B3": 8, "B4": 30,
+                "D1": 100, "D2": 200, "D3": 300, "D4": 400
+            }),
+        );
+        assert_eq!(response.status, "ok");
+        assert_eq!(response.value, json!(500.0));
+
+        let count = evaluate(
+            "=CONT.SES(A1:A4;\"Pago\";B1:B4;\">=10\")",
+            json!({
+                "A1": "Pago", "A2": "Pendente", "A3": "Pago", "A4": "Pago",
+                "B1": 10, "B2": 20, "B3": 8, "B4": 30
+            }),
+        );
+        assert_eq!(count.value, json!(2.0));
+    }
+
+    #[test]
+    fn evaluates_lookup_business_functions() {
+        let xlookup = evaluate(
+            "=PROCX(\"B\";A1:A3;B1:B3;\"ausente\")",
+            json!({"A1": "A", "A2": "B", "A3": "C", "B1": 10, "B2": 20, "B3": 30}),
+        );
+        assert_eq!(xlookup.value, json!(20.0));
+
+        let index_match = evaluate(
+            "=INDICE(B1:B3;CORRESP(\"C\";A1:A3;0))",
+            json!({"A1": "A", "A2": "B", "A3": "C", "B1": 10, "B2": 20, "B3": 30}),
+        );
+        assert_eq!(index_match.value, json!(30.0));
+    }
+
+    #[test]
+    fn compiles_versioned_intermediate_representation() {
+        let compiled = compile_formula("=SOMASES(D1:D4;A1:A4;\"Pago\")");
+        assert_eq!(compiled["status"], json!("ok"));
+        assert_eq!(compiled["ir_version"], json!(1));
+        assert_eq!(compiled["ast"]["type"], json!("call"));
+        assert_eq!(compiled["ast"]["name"], json!("SOMASES"));
+    }
+
+    #[test]
     fn reports_unsupported_functions_for_javascript_fallback() {
-        let response = evaluate("=PROCX(A1;B1:B2;C1:C2)", json!({}));
+        let response = evaluate("=FILTRO(A1:A2;B1:B2)", json!({}));
         assert_eq!(response.status, "unsupported");
     }
 
