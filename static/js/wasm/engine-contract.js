@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const ABI_VERSION = 6;
+  const ABI_VERSION = 7;
   const encoder = new TextEncoder();
   const decoder = new TextDecoder();
 
@@ -32,6 +32,7 @@
       'superexcel_workbook_create',
       'superexcel_workbook_apply',
       'superexcel_workbook_get_cell',
+      'superexcel_workbook_get_spill',
       'superexcel_workbook_stats',
       'superexcel_workbook_destroy',
     ];
@@ -114,6 +115,12 @@
       ));
     }
 
+    function getWorkbookSpill(handle, cell) {
+      return withPayload({ cell }, (pointer, length) => (
+        readJsonResult(exports.superexcel_workbook_get_spill(Number(handle) || 0, pointer, length))
+      ));
+    }
+
     function getWorkbookStats(handle) {
       return readJsonResult(exports.superexcel_workbook_stats(Number(handle) || 0));
     }
@@ -132,6 +139,7 @@
       createWorkbook,
       applyWorkbook,
       getWorkbookCell,
+      getWorkbookSpill,
       getWorkbookStats,
       destroyWorkbook,
     });

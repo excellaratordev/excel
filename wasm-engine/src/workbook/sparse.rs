@@ -1,7 +1,7 @@
 use super::{FormulaNode, Workbook};
 use crate::{
     cell_name, compare_values, matches_criterion, scalar_binary, to_number, truthy, Ast, CellRange,
-    CellReference, EngineError, Value, MAX_RANGE_CELLS,
+    EngineError, Value, MAX_RANGE_CELLS,
 };
 use std::collections::HashSet;
 

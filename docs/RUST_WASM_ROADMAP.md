@@ -73,7 +73,7 @@ Critério de saída atingido: um intervalo de 100.000 posições usa um descrito
 
 ## Fase 5 — avaliação esparsa de ranges
 
-Estado: **implementado nesta entrega**.
+Estado: **implementado**.
 
 - ABI versão 6, mantendo IR versão 2;
 - índice ordenado das células ocupadas por coordenada;
@@ -87,17 +87,29 @@ Critério de saída atingido: `SOMA(A1:A100000)` com duas células ocupadas reso
 
 ## Fase 6 — matrizes, spill e referências externas
 
-Estado: **planejado**.
+Estado: **implementado parcialmente nesta entrega**.
 
-- `FILTRO`, `ÚNICO` e `CLASSIFICAR`;
-- broadcasting completo;
-- spill e conflitos de área;
+Implementado:
+
+- ABI versão 7, mantendo IR versão 2;
+- `FILTRO`, `ÚNICO` e `CLASSIFICAR` com aliases em inglês;
+- arrays tipados em avaliações stateless e stateful;
+- limite experimental de 10.000 células por matriz dinâmica ou spill;
+- export `superexcel_workbook_get_spill`;
+- plano `ready`, `blocked` ou `scalar`;
+- área, dimensões, matriz, valor da origem e lista de bloqueadores;
+- `#DESPEJAR!` quando a área possui células ocupadas;
+- métricas de planos e conflitos.
+
+Ainda planejado:
+
+- aplicação autoritativa do spill e registro dos alvos no workbook Rust;
+- broadcasting completo para todas as operações;
 - referências externas a Bases e Planilhas;
 - IR com origem externa, revisão e tipos especializados;
-- valores tipados e buffers compactos;
 - invalidação seletiva de fontes externas por revisão.
 
-Critério de saída: matrizes e referências externas produzem os mesmos resultados, tipos e áreas afetadas do runtime JavaScript.
+Critério parcial atingido: funções matriciais locais produzem arrays equivalentes ao JavaScript e o Rust identifica áreas de spill livres ou bloqueadas. O critério completo depende de spill autoritativo e referências externas.
 
 ## Fase 7 — runtime autoritativo
 
@@ -121,5 +133,5 @@ Critério de saída: metas de `BENCHMARK.md` atingidas, cobertura funcional sufi
 4. O asset Wasm deve corresponder exatamente ao código Rust do commit.
 5. A ABI só muda com incremento de versão e adaptação simultânea do navegador.
 6. O modo padrão permanece `off` até haver evidência de paridade e ganho mensurável.
-7. Matrizes não se tornam autoritativas enquanto spill e conflitos não estiverem implementados no núcleo.
+7. Matrizes não se tornam autoritativas enquanto o núcleo não aplicar o spill, registrar seus alvos e invalidá-los corretamente; o plano de conflito isolado não é suficiente.
 8. A IR só se torna contrato de produção após cobrir referências externas e tipos especializados.

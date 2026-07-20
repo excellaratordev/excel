@@ -23,6 +23,8 @@
     workbookReads: 0,
     workbookUpdates: 0,
     workbookFailures: 0,
+    spillPlans: 0,
+    spillConflicts: 0,
   };
 
   function configuredMode() {
@@ -166,6 +168,21 @@
     }
   }
 
+  function getWorkbookSpill(handle, cell) {
+    if (!state.engine || !handle) return { status: 'unavailable', error: 'Workbook Wasm indisponível.' };
+    try {
+      const result = state.engine.getWorkbookSpill(handle, cell);
+      if (result?.status === 'ok') {
+        state.spillPlans += 1;
+        if (result.spill?.status === 'blocked') state.spillConflicts += 1;
+      } else state.workbookFailures += 1;
+      return result;
+    } catch (error) {
+      state.workbookFailures += 1;
+      return { status: 'error', error: error?.message || String(error), value: '#ERRO!' };
+    }
+  }
+
   function getWorkbookStats(handle) {
     if (!state.engine || !handle) return null;
     try {
@@ -219,6 +236,8 @@
       workbook_reads: state.workbookReads,
       workbook_updates: state.workbookUpdates,
       workbook_failures: state.workbookFailures,
+      spill_plans: state.spillPlans,
+      spill_conflicts: state.spillConflicts,
       error: state.error,
     };
   }
@@ -231,6 +250,7 @@
     createWorkbook,
     applyWorkbook,
     getWorkbookCell,
+    getWorkbookSpill,
     getWorkbookStats,
     destroyWorkbook,
     getStats,

@@ -1,8 +1,8 @@
 [package]
 name = "superexcel-wasm-engine"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
-description = "Stateful Rust/WebAssembly formula engine with sparse range evaluation for Super Excel"
+description = "Stateful Rust/WebAssembly formula engine with sparse ranges, dynamic arrays and spill planning for Super Excel"
 license = "MIT"
 
 [lib]
