@@ -286,16 +286,18 @@ O runtime JavaScript atual fornece parser independente da grade, AST, referênci
 
 O crate `wasm-engine/` é compilado pela CI e contém um núcleo experimental stateful:
 
-- ABI versão 3;
+- ABI versão 4 e IR de fórmulas versão 1;
 - parser e AST em Rust;
-- avaliação de fórmulas locais suportadas;
+- compilação local para IR JSON e testes diferenciais contra o parser JavaScript;
+- avaliação de fórmulas locais básicas, condicionais e de busca;
+- critérios numéricos, operadores e curingas;
 - workbooks identificados por handles;
 - grafo reverso de dependências por célula;
 - cache de resultados, detecção de ciclos e invalidação transitiva;
 - alterações em lote, revisão, lista de afetados e métricas;
 - integração `off`, `shadow` e `prefer` com fallback JavaScript.
 
-O grafo Rust atual expande intervalos locais dentro do limite experimental e ainda não substitui funções avançadas, matrizes completas, referências externas, histórico, persistência ou colaboração. JavaScript permanece como referência geral e fallback.
+O grafo Rust atual expande intervalos locais dentro do limite experimental. A IR não cobre referências externas, e o núcleo ainda não substitui matrizes dinâmicas, spill, intervalos grandes indexados, histórico, persistência ou colaboração. JavaScript permanece como referência geral e fallback.
 
 ## Matriz de maturidade
 
@@ -316,7 +318,7 @@ O grafo Rust atual expande intervalos locais dentro do limite experimental e ain
 | Colaboração por operações | Implementado |
 | Telemetria e Test Time | Implementado |
 | GitHub App e hospedagem HTML | Implementado |
-| Workbook Rust/Wasm local stateful | Implementado parcialmente; modo padrão ainda é `off` |
+| Workbook Rust/Wasm local stateful e IR v1 | Implementado parcialmente; inclui funções empresariais, mas o modo padrão ainda é `off` |
 | Motor completo Rust/Wasm | Não implementado |
 | Importação XLSX/XLSM | Não implementado |
 | Aplicação desktop/Tauri | Não implementado |
@@ -366,15 +368,16 @@ Uma camada antiga só permanece quando ainda possui consumidor ativo ou contrato
 - centralizar validação de capacidades;
 - separar contratos de domínio dos adaptadores Supabase.
 
-### 3. Completar a representação intermediária
+### 3. Ampliar a representação intermediária
 
-- fórmulas, dependências e operações devem possuir contrato serializável comum;
-- criar testes diferenciais antes de substituir qualquer componente;
-- manter a semântica do runtime JavaScript como referência autoritativa.
+- a IR versão 1 cobre fórmulas locais e possui testes diferenciais entre JavaScript e Rust;
+- adicionar referências externas, tipos especializados e metadados de origem;
+- aproximar o catálogo de aliases de uma única fonte de verdade;
+- manter a semântica do runtime JavaScript como referência autoritativa até a paridade comprovada.
 
 ### 4. Expandir Rust/Wasm com evidência
 
-A base stateful já existe. A ampliação exige IR compartilhada, paridade semântica, funções empresariais, intervalos indexados, matrizes, referências externas, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
+A base stateful, a IR v1 e as funções empresariais iniciais já existem. A próxima ampliação exige intervalos indexados, matrizes dinâmicas, referências externas, benchmarks comparativos, feature flag e rollback para o runtime JavaScript.
 
 ### 5. Demonstrar desempenho
 

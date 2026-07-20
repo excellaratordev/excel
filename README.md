@@ -119,17 +119,21 @@ Exemplos:
 
 Use `;` como separador de argumentos e `,` como separador decimal.
 
-## Rust/WebAssembly — workbook stateful incremental
+## Rust/WebAssembly — ABI 4, IR compartilhada e funções empresariais
 
-O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. JavaScript continua disponível como referência e fallback.
+O diretório `wasm-engine/` contém um núcleo stateful em Rust compilado para WebAssembly. Para a fatia local suportada, ele mantém valores, fórmulas, dependências, cache e recálculo seletivo dentro do módulo Wasm. A ABI 4 também expõe uma representação intermediária JSON versionada, comparável à produzida pelo parser JavaScript.
 
 Implementado:
 
-- ABI versão `3` com entrada e saída JSON tipadas;
+- ABI versão `4` e IR de fórmulas versão `1`;
 - parser e AST próprios em Rust;
+- compilação de fórmula para IR pelo JavaScript e pelo Wasm;
 - números, textos, booleanos, referências A1 e intervalos locais;
 - operadores aritméticos, concatenação, percentual e comparações;
 - funções básicas localizadas e aliases em inglês;
+- funções condicionais `CONT.SE`, `CONT.SES`, `SOMASE`, `SOMASES`, `MÉDIASE` e `MÉDIASES`;
+- critérios numéricos, comparadores e curingas `*` e `?`;
+- buscas `PROCV`, `PROCX`, `ÍNDICE` e `CORRESP`;
 - workbooks identificados por handles;
 - grafo reverso de dependências por célula;
 - cache de resultados e invalidação transitiva seletiva;
@@ -140,7 +144,7 @@ Implementado:
 - reconstrução segura do espelho após undo/redo;
 - limite de 4.096 células por intervalo e 100.000 células por workbook experimental;
 - binário versionado em `static/wasm/superexcel_wasm_engine.wasm`;
-- testes Rust e execução real do módulo Wasm pelo Node na CI.
+- testes diferenciais de IR, testes Rust e execução real do módulo Wasm pelo Node na CI.
 
 Modos disponíveis:
 
@@ -157,7 +161,7 @@ Exemplo:
 
 Ainda permanecem em JavaScript:
 
-- funções empresariais avançadas e matrizes dinâmicas completas;
+- funções de matrizes dinâmicas completas, como `FILTRO`, `ÚNICO` e `CLASSIFICAR`;
 - dependências de intervalos grandes com indexação especializada;
 - referências externas a Bases e Planilhas;
 - spill autoritativo, histórico, persistência, snapshots e colaboração.
