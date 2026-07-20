@@ -1847,8 +1847,8 @@ mod tests {
     }
 
     #[test]
-    fn abi_is_version_four() {
-        assert_eq!(superexcel_abi_version(), 4);
+    fn abi_is_version_five() {
+        assert_eq!(superexcel_abi_version(), 5);
     }
 
     #[test]
@@ -1925,7 +1925,7 @@ mod tests {
     fn compiles_versioned_intermediate_representation() {
         let compiled = compile_formula("=SOMASES(D1:D4;A1:A4;\"Pago\")");
         assert_eq!(compiled["status"], json!("ok"));
-        assert_eq!(compiled["ir_version"], json!(1));
+        assert_eq!(compiled["ir_version"], json!(2));
         assert_eq!(compiled["ast"]["type"], json!("call"));
         assert_eq!(compiled["ast"]["name"], json!("SOMASES"));
     }
