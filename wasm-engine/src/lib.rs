@@ -8,7 +8,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 mod workbook;
 
-pub const ABI_VERSION: u32 = 5;
+pub const ABI_VERSION: u32 = 6;
 const IR_VERSION: u32 = 2;
 const MAX_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RANGE_CELLS: usize = 4096;
@@ -1847,8 +1847,8 @@ mod tests {
     }
 
     #[test]
-    fn abi_is_version_five() {
-        assert_eq!(superexcel_abi_version(), 5);
+    fn abi_is_version_six() {
+        assert_eq!(superexcel_abi_version(), 6);
     }
 
     #[test]

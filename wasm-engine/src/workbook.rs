@@ -4,10 +4,12 @@ use super::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value as JsonValue};
-use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::slice;
 use std::str;
 use std::sync::{Mutex, OnceLock};
+
+mod sparse;
 
 const MAX_WORKBOOK_CELLS: usize = 100_000;
 const MAX_WORKBOOK_CHANGES: usize = 10_000;
@@ -140,17 +142,26 @@ struct WorkbookStats {
     direct_dependency_edges: usize,
     range_dependencies: usize,
     range_buckets: usize,
+    sparse_range_evaluations: u64,
+    sparse_cells_resolved: u64,
+    streamed_range_positions: u64,
+    range_positions_avoided: u64,
     cache_entries: usize,
     cache_hits: u64,
     cache_misses: u64,
     recalculations: u64,
     updates: u64,
+    sparse_range_evaluations: u64,
+    sparse_cells_resolved: u64,
+    streamed_range_positions: u64,
+    range_positions_avoided: u64,
     last_affected: Vec<String>,
 }
 
 #[derive(Debug)]
 struct Workbook {
     raw: HashMap<String, JsonValue>,
+    occupied_cells: BTreeMap<(usize, usize), String>,
     formulas: HashMap<String, FormulaState>,
     reverse_dependencies: HashMap<String, BTreeSet<String>>,
     range_index: RangeDependencyIndex,
@@ -167,6 +178,7 @@ impl Workbook {
     fn empty() -> Self {
         Self {
             raw: HashMap::new(),
+            occupied_cells: BTreeMap::new(),
             formulas: HashMap::new(),
             reverse_dependencies: HashMap::new(),
             range_index: RangeDependencyIndex::default(),
@@ -176,6 +188,10 @@ impl Workbook {
             cache_misses: 0,
             recalculations: 0,
             updates: 0,
+            sparse_range_evaluations: 0,
+            sparse_cells_resolved: 0,
+            streamed_range_positions: 0,
+            range_positions_avoided: 0,
             last_affected: Vec::new(),
         }
     }
@@ -199,12 +215,21 @@ impl Workbook {
     fn define_cell(&mut self, key: String, value: JsonValue) {
         self.remove_formula(&key);
         self.cache.remove(&key);
+        let coordinate = parse_cell_reference(&key)
+            .ok()
+            .map(|reference| (reference.row, reference.col));
 
         if value.is_null() || value.as_str().is_some_and(str::is_empty) {
             self.raw.remove(&key);
+            if let Some(coordinate) = coordinate {
+                self.occupied_cells.remove(&coordinate);
+            }
             return;
         }
 
+        if let Some(coordinate) = coordinate {
+            self.occupied_cells.insert(coordinate, key.clone());
+        }
         self.raw.insert(key.clone(), value.clone());
         let Some(formula) = formula_text(&value) else {
             return;
@@ -368,6 +393,15 @@ impl Workbook {
         };
 
         stack.insert(key.to_string());
+        if self.should_use_sparse(&node) {
+            let result = self.evaluate_sparse_formula(&node.ast, stack);
+            stack.remove(key);
+            let value = result?;
+            self.recalculations = self.recalculations.saturating_add(1);
+            self.cache.insert(key.to_string(), value.clone());
+            return Ok(value);
+        }
+
         let mut resolved = HashMap::with_capacity(
             node.direct_dependencies.len() + node.range_dependencies.len().saturating_mul(16),
         );
@@ -417,6 +451,10 @@ impl Workbook {
             direct_dependency_edges,
             range_dependencies,
             range_buckets: self.range_index.bucket_count(),
+            sparse_range_evaluations: self.sparse_range_evaluations,
+            sparse_cells_resolved: self.sparse_cells_resolved,
+            streamed_range_positions: self.streamed_range_positions,
+            range_positions_avoided: self.range_positions_avoided,
             cache_entries: self.cache.len(),
             cache_hits: self.cache_hits,
             cache_misses: self.cache_misses,
@@ -729,6 +767,36 @@ mod tests {
             workbook.evaluate_cell("AB1").unwrap().1,
             Value::Number(20.0)
         );
+    }
+
+    #[test]
+    fn evaluates_large_sparse_sum_without_dense_materialization() {
+        let mut workbook = workbook(json!({
+            "A1": 10,
+            "A100000": 20,
+            "Z1": "=SOMA(A1:A100000)",
+        }));
+        assert_eq!(workbook.evaluate_cell("Z1").unwrap().1, Value::Number(30.0));
+        let stats = workbook.stats();
+        assert_eq!(stats.sparse_range_evaluations, 1);
+        assert_eq!(stats.sparse_cells_resolved, 2);
+        assert!(stats.range_positions_avoided >= 99_998);
+        assert_eq!(stats.streamed_range_positions, 0);
+    }
+
+    #[test]
+    fn streams_large_conditional_ranges_without_dense_buffers() {
+        let mut workbook = workbook(json!({
+            "A1": 10,
+            "A100000": 20,
+            "B1": "Pago",
+            "B100000": "Pago",
+            "Z1": "=SOMASES(A1:A100000;B1:B100000;"Pago")",
+        }));
+        assert_eq!(workbook.evaluate_cell("Z1").unwrap().1, Value::Number(30.0));
+        let stats = workbook.stats();
+        assert!(stats.streamed_range_positions >= 100_000);
+        assert!(stats.sparse_cells_resolved >= 4);
     }
 
     #[test]

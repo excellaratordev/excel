@@ -28,7 +28,7 @@ lib = replace_once(
 )
 lib = replace_once(
     lib,
-    "fn abi_is_version_four() {\n        assert_eq!(superexcel_abi_version(), 5);\n    }",
+    "fn abi_is_version_five() {\n        assert_eq!(superexcel_abi_version(), 5);\n    }",
     "fn abi_is_version_six() {\n        assert_eq!(superexcel_abi_version(), 6);\n    }",
     "Rust ABI test",
 )
@@ -188,7 +188,7 @@ platform_path = "tests/js/platform-foundation.test.js"
 platform = read(platform_path)
 platform = replace_once(
     platform,
-    "test('runtime Rust/Wasm com IR compacta usa ABI 5', () => assert.equal(ABI_VERSION, 5));",
+    "test('runtime Rust/Wasm com índice de intervalos usa ABI 5', () => assert.equal(ABI_VERSION, 5));",
     "test('runtime Rust/Wasm com avaliação esparsa usa ABI 6', () => assert.equal(ABI_VERSION, 6));",
     "platform ABI test",
 )
@@ -199,8 +199,8 @@ frontend = read(frontend_path)
 frontend = replace_once(frontend, 'assert "const ABI_VERSION = 5" in contract', 'assert "const ABI_VERSION = 6" in contract', "Python ABI assertion")
 frontend = replace_once(
     frontend,
-    '    assert "range_index" in workbook_source\n',
-    '    assert "range_index" in workbook_source\n    assert "occupied_cells" in workbook_source\n    assert "evaluate_sparse_formula" in (ROOT / "wasm-engine/src/workbook/sparse.rs").read_text(encoding="utf-8")\n',
+    '    assert "range_buckets" in workbook_source\n',
+    '    assert "range_buckets" in workbook_source\n    assert "occupied_cells" in workbook_source\n    assert "evaluate_sparse_formula" in (ROOT / "wasm-engine/src/workbook/sparse.rs").read_text(encoding="utf-8")\n',
     "Python sparse source assertions",
 )
 write(frontend_path, frontend)
@@ -235,16 +235,12 @@ assert.equal(engine.destroyWorkbook(sparseWorkbook.handle), true);
 console.log(JSON.stringify({''',
     "Node sparse workbook coverage",
 )
-integration = replace_once(integration, "tests: 19,", "tests: 21,", "Node test count")
+integration = replace_once(integration, "tests: 20,", "tests: 22,", "Node test count")
 integration = replace_once(
     integration,
-    '''  ranges: {
-    descriptors: largeStats.range_dependencies,
-    buckets: largeStats.range_buckets,
+    '''    range_buckets: largeStats.range_buckets,
   },''',
-    '''  ranges: {
-    descriptors: largeStats.range_dependencies,
-    buckets: largeStats.range_buckets,
+    '''    range_buckets: largeStats.range_buckets,
     sparse_evaluations: sparseStats.sparse_range_evaluations,
     positions_avoided: sparseStats.range_positions_avoided,
     streamed_positions: sparseStats.streamed_range_positions,

@@ -1,7 +1,7 @@
 use super::{FormulaNode, Workbook};
 use crate::{
-    cell_name, compare_values, matches_criterion, scalar_binary, to_number, truthy, Ast,
-    CellRange, CellReference, EngineError, Value, MAX_RANGE_CELLS,
+    cell_name, compare_values, matches_criterion, scalar_binary, to_number, truthy, Ast, CellRange,
+    CellReference, EngineError, Value, MAX_RANGE_CELLS,
 };
 use std::collections::HashSet;
 
@@ -22,10 +22,7 @@ impl WorkbookEvalValue {
     fn dimensions(&self) -> (usize, usize) {
         match self {
             Self::Scalar(_) => (1, 1),
-            Self::Range(range) => (
-                range.bottom - range.top + 1,
-                range.right - range.left + 1,
-            ),
+            Self::Range(range) => (range.bottom - range.top + 1, range.right - range.left + 1),
         }
     }
 }
@@ -71,12 +68,8 @@ impl NumericAccumulator {
     fn finish(self, mode: SparseAggregate) -> Result<Value, EngineError> {
         match mode {
             SparseAggregate::Sum => Ok(Value::Number(self.sum)),
-            SparseAggregate::Average if self.count == 0 => {
-                Ok(Value::Error("#DIV/0!".into()))
-            }
-            SparseAggregate::Average => {
-                Ok(Value::Number(self.sum / self.count as f64))
-            }
+            SparseAggregate::Average if self.count == 0 => Ok(Value::Error("#DIV/0!".into())),
+            SparseAggregate::Average => Ok(Value::Number(self.sum / self.count as f64)),
             SparseAggregate::Min => self
                 .min
                 .map(Value::Number)
@@ -121,9 +114,9 @@ impl Workbook {
                 let value = self.evaluate_cell_inner(&cell_name(reference), stack)?;
                 Ok(WorkbookEvalValue::Scalar(value))
             }
-            Ast::Range(start, end) => Ok(WorkbookEvalValue::Range(
-                CellRange::from_references(start, end),
-            )),
+            Ast::Range(start, end) => Ok(WorkbookEvalValue::Range(CellRange::from_references(
+                start, end,
+            ))),
             Ast::Unary(operator, value) => {
                 let evaluated = self.evaluate_sparse_ast(value, stack)?;
                 let value = self.require_sparse_scalar(evaluated)?;
@@ -152,10 +145,7 @@ impl Workbook {
         }
     }
 
-    fn require_sparse_scalar(
-        &self,
-        value: WorkbookEvalValue,
-    ) -> Result<Value, EngineError> {
+    fn require_sparse_scalar(&self, value: WorkbookEvalValue) -> Result<Value, EngineError> {
         match value {
             WorkbookEvalValue::Scalar(value) => Ok(value),
             WorkbookEvalValue::Range(_) => Err(EngineError::unsupported(
@@ -179,9 +169,11 @@ impl Workbook {
         stack: &mut HashSet<String>,
     ) -> Result<Value, EngineError> {
         match value {
-            WorkbookEvalValue::Scalar(value) => {
-                Ok(if index == 0 { value.clone() } else { Value::Blank })
-            }
+            WorkbookEvalValue::Scalar(value) => Ok(if index == 0 {
+                value.clone()
+            } else {
+                Value::Blank
+            }),
             WorkbookEvalValue::Range(range) => {
                 if index >= range.cell_count() {
                     return Ok(Value::Blank);
@@ -314,56 +306,54 @@ impl Workbook {
                     value => value,
                 }
             }
-            "SOMA" | "SUM" => WorkbookEvalValue::Scalar(
-                self.sparse_aggregate(args, SparseAggregate::Sum, stack)?,
-            ),
-            "MEDIA" | "MÉDIA" | "AVERAGE" => WorkbookEvalValue::Scalar(
-                self.sparse_aggregate(args, SparseAggregate::Average, stack)?,
-            ),
-            "MINIMO" | "MÍNIMO" | "MIN" => WorkbookEvalValue::Scalar(
-                self.sparse_aggregate(args, SparseAggregate::Min, stack)?,
-            ),
-            "MAXIMO" | "MÁXIMO" | "MAX" => WorkbookEvalValue::Scalar(
-                self.sparse_aggregate(args, SparseAggregate::Max, stack)?,
-            ),
-            "CONTNUM" | "COUNT" => WorkbookEvalValue::Scalar(
-                self.sparse_aggregate(args, SparseAggregate::Count, stack)?,
-            ),
+            "SOMA" | "SUM" => WorkbookEvalValue::Scalar(self.sparse_aggregate(
+                args,
+                SparseAggregate::Sum,
+                stack,
+            )?),
+            "MEDIA" | "MÉDIA" | "AVERAGE" => WorkbookEvalValue::Scalar(self.sparse_aggregate(
+                args,
+                SparseAggregate::Average,
+                stack,
+            )?),
+            "MINIMO" | "MÍNIMO" | "MIN" => WorkbookEvalValue::Scalar(self.sparse_aggregate(
+                args,
+                SparseAggregate::Min,
+                stack,
+            )?),
+            "MAXIMO" | "MÁXIMO" | "MAX" => WorkbookEvalValue::Scalar(self.sparse_aggregate(
+                args,
+                SparseAggregate::Max,
+                stack,
+            )?),
+            "CONTNUM" | "COUNT" => WorkbookEvalValue::Scalar(self.sparse_aggregate(
+                args,
+                SparseAggregate::Count,
+                stack,
+            )?),
             "CONTSE" | "COUNTIF" | "CONTSES" | "COUNTIFS" => {
                 WorkbookEvalValue::Scalar(self.sparse_count_ifs(args, stack)?)
             }
-            "SOMASE" | "SUMIF" => {
-                WorkbookEvalValue::Scalar(self.sparse_sum_if(args, stack)?)
-            }
-            "SOMASES" | "SUMIFS" => WorkbookEvalValue::Scalar(
-                self.sparse_conditional_aggregate(
-                    args,
-                    SparseConditionalAggregate::Sum,
-                    stack,
-                )?,
-            ),
+            "SOMASE" | "SUMIF" => WorkbookEvalValue::Scalar(self.sparse_sum_if(args, stack)?),
+            "SOMASES" | "SUMIFS" => WorkbookEvalValue::Scalar(self.sparse_conditional_aggregate(
+                args,
+                SparseConditionalAggregate::Sum,
+                stack,
+            )?),
             "MEDIASE" | "AVERAGEIF" => {
                 WorkbookEvalValue::Scalar(self.sparse_average_if(args, stack)?)
             }
-            "MEDIASES" | "AVERAGEIFS" => WorkbookEvalValue::Scalar(
-                self.sparse_conditional_aggregate(
+            "MEDIASES" | "AVERAGEIFS" => {
+                WorkbookEvalValue::Scalar(self.sparse_conditional_aggregate(
                     args,
                     SparseConditionalAggregate::Average,
                     stack,
-                )?,
-            ),
-            "PROCV" | "VLOOKUP" => {
-                WorkbookEvalValue::Scalar(self.sparse_vlookup(args, stack)?)
+                )?)
             }
-            "PROCX" | "XLOOKUP" => {
-                WorkbookEvalValue::Scalar(self.sparse_xlookup(args, stack)?)
-            }
-            "INDICE" | "INDEX" => {
-                WorkbookEvalValue::Scalar(self.sparse_index(args, stack)?)
-            }
-            "CORRESP" | "MATCH" => {
-                WorkbookEvalValue::Scalar(self.sparse_match(args, stack)?)
-            }
+            "PROCV" | "VLOOKUP" => WorkbookEvalValue::Scalar(self.sparse_vlookup(args, stack)?),
+            "PROCX" | "XLOOKUP" => WorkbookEvalValue::Scalar(self.sparse_xlookup(args, stack)?),
+            "INDICE" | "INDEX" => WorkbookEvalValue::Scalar(self.sparse_index(args, stack)?),
+            "CORRESP" | "MATCH" => WorkbookEvalValue::Scalar(self.sparse_match(args, stack)?),
             "ABS" => {
                 let arg = args
                     .first()
@@ -419,12 +409,11 @@ impl Workbook {
                     }
                 }
                 WorkbookEvalValue::Range(range) => {
-                    self.sparse_range_evaluations =
-                        self.sparse_range_evaluations.saturating_add(1);
+                    self.sparse_range_evaluations = self.sparse_range_evaluations.saturating_add(1);
                     let keys = self.occupied_keys_in_range(&range);
-                    self.range_positions_avoided = self.range_positions_avoided.saturating_add(
-                        range.cell_count().saturating_sub(keys.len()) as u64,
-                    );
+                    self.range_positions_avoided = self
+                        .range_positions_avoided
+                        .saturating_add(range.cell_count().saturating_sub(keys.len()) as u64);
                     self.sparse_cells_resolved =
                         self.sparse_cells_resolved.saturating_add(keys.len() as u64);
                     for key in keys {
@@ -585,9 +574,7 @@ impl Workbook {
         }
         match mode {
             SparseConditionalAggregate::Sum => Ok(Value::Number(sum)),
-            SparseConditionalAggregate::Average if count == 0 => {
-                Ok(Value::Error("#DIV/0!".into()))
-            }
+            SparseConditionalAggregate::Average if count == 0 => Ok(Value::Error("#DIV/0!".into())),
             SparseConditionalAggregate::Average => Ok(Value::Number(sum / count as f64)),
         }
     }
@@ -604,9 +591,8 @@ impl Workbook {
         let lookup = self.sparse_first_scalar(&lookup_value, stack)?;
         let table = self.evaluate_sparse_ast(&args[1], stack)?;
         let column_value = self.evaluate_sparse_ast(&args[2], stack)?;
-        let column = to_number(&self.sparse_first_scalar(&column_value, stack)?)?.trunc()
-            as isize
-            - 1;
+        let column =
+            to_number(&self.sparse_first_scalar(&column_value, stack)?)?.trunc() as isize - 1;
         let (rows, columns) = table.dimensions();
         if column < 0 || column as usize >= columns {
             return Ok(Value::Error("#REF!".into()));
