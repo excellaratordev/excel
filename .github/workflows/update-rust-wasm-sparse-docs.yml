@@ -21,23 +21,18 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Apply and capture documentation updates
-        run: |
-          set +e
-          python .phase/update_sparse_range_docs.py > .phase/sparse-doc-validation.log 2>&1
-          status=$?
-          echo "$status" > .phase/sparse-doc-validation.exit
-          cat .phase/sparse-doc-validation.log
-          exit 0
+      - name: Finalize roadmap
+        run: python .phase/update_sparse_range_docs.py
 
-      - name: Persist documentation and diagnostics
+      - name: Commit clean documentation
         run: |
+          rm -f .phase/update_sparse_range_docs.py \
+                .phase/sparse-doc-validation.log \
+                .phase/sparse-doc-validation.exit \
+                .github/workflows/update-rust-wasm-sparse-docs.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "docs(wasm): persist sparse documentation progress"
+          git commit -m "docs(wasm): finalize ABI 6 sparse range documentation"
           git pull --rebase origin engine/rust-wasm-sparse-range-v5
           git push origin HEAD:engine/rust-wasm-sparse-range-v5
-
-      - name: Enforce documentation result
-        run: test "$(cat .phase/sparse-doc-validation.exit)" = "0"
