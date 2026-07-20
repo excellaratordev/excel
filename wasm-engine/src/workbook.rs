@@ -14,6 +14,7 @@ mod sparse;
 const MAX_WORKBOOK_CELLS: usize = 100_000;
 const MAX_WORKBOOK_CHANGES: usize = 10_000;
 const MAX_WORKBOOK_RANGE_CELLS: usize = 100_000;
+const MAX_WORKBOOK_SPILL_CELLS: usize = 10_000;
 const RANGE_BUCKET_ROWS: usize = 256;
 const RANGE_BUCKET_COLS: usize = 32;
 
@@ -146,12 +147,27 @@ struct WorkbookStats {
     sparse_cells_resolved: u64,
     streamed_range_positions: u64,
     range_positions_avoided: u64,
+    spill_plans: u64,
+    spill_conflicts: u64,
     cache_entries: usize,
     cache_hits: u64,
     cache_misses: u64,
     recalculations: u64,
     updates: u64,
     last_affected: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+struct SpillPlan {
+    status: &'static str,
+    origin: String,
+    range: String,
+    rows: usize,
+    cols: usize,
+    value: JsonValue,
+    value_type: &'static str,
+    matrix: JsonValue,
+    blocked_by: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -171,6 +187,8 @@ struct Workbook {
     sparse_cells_resolved: u64,
     streamed_range_positions: u64,
     range_positions_avoided: u64,
+    spill_plans: u64,
+    spill_conflicts: u64,
     last_affected: Vec<String>,
 }
 
@@ -192,6 +210,8 @@ impl Workbook {
             sparse_cells_resolved: 0,
             streamed_range_positions: 0,
             range_positions_avoided: 0,
+            spill_plans: 0,
+            spill_conflicts: 0,
             last_affected: Vec::new(),
         }
     }
@@ -440,6 +460,96 @@ impl Workbook {
         Ok(value)
     }
 
+    fn spill_plan(&mut self, cell: &str) -> Result<SpillPlan, EngineError> {
+        let (origin_key, value) = self.evaluate_cell(cell)?;
+        let is_array = matches!(value, Value::Array(_));
+        let matrix = match value {
+            Value::Array(rows) => rows,
+            scalar => vec![vec![scalar]],
+        };
+        let rows = matrix.len();
+        let cols = matrix.first().map(Vec::len).unwrap_or(0);
+        if rows == 0 || cols == 0 || matrix.iter().any(|row| row.len() != cols) {
+            return Err(EngineError::unsupported(
+                "Matriz dinâmica vazia ou irregular ainda usa fallback JavaScript.",
+            ));
+        }
+        let total = rows.saturating_mul(cols);
+        if total > MAX_WORKBOOK_SPILL_CELLS {
+            return Err(EngineError::unsupported(format!(
+                "Spill excede o limite experimental de {MAX_WORKBOOK_SPILL_CELLS} células."
+            )));
+        }
+
+        let origin = parse_cell_reference(&origin_key)?;
+        let end = CellReference {
+            row: origin.row.saturating_add(rows - 1),
+            col: origin.col.saturating_add(cols - 1),
+        };
+        let end_key = cell_name(&end);
+        let mut blocked_by = Vec::new();
+        if is_array {
+            for row in 0..rows {
+                for col in 0..cols {
+                    if row == 0 && col == 0 {
+                        continue;
+                    }
+                    let target = cell_name(&CellReference {
+                        row: origin.row + row,
+                        col: origin.col + col,
+                    });
+                    if self.raw.contains_key(&target) {
+                        blocked_by.push(target);
+                    }
+                }
+            }
+        }
+        blocked_by.sort();
+        blocked_by.dedup();
+
+        let top_left = matrix
+            .first()
+            .and_then(|row| row.first())
+            .cloned()
+            .unwrap_or(Value::Blank);
+        let blocked = !blocked_by.is_empty();
+        if is_array {
+            self.spill_plans = self.spill_plans.saturating_add(1);
+            if blocked {
+                self.spill_conflicts = self.spill_conflicts.saturating_add(1);
+            }
+        }
+        Ok(SpillPlan {
+            status: if !is_array {
+                "scalar"
+            } else if blocked {
+                "blocked"
+            } else {
+                "ready"
+            },
+            origin: origin_key.clone(),
+            range: if rows == 1 && cols == 1 {
+                origin_key
+            } else {
+                format!("{origin_key}:{end_key}")
+            },
+            rows,
+            cols,
+            value: if blocked {
+                json!("#DESPEJAR!")
+            } else {
+                top_left.to_json()
+            },
+            value_type: if blocked {
+                "error"
+            } else {
+                top_left.value_type()
+            },
+            matrix: Value::Array(matrix).to_json(),
+            blocked_by,
+        })
+    }
+
     fn stats(&self) -> WorkbookStats {
         let direct_dependency_edges = self.reverse_dependencies.values().map(BTreeSet::len).sum();
         let range_dependencies = self.range_index.dependency_count();
@@ -455,6 +565,8 @@ impl Workbook {
             sparse_cells_resolved: self.sparse_cells_resolved,
             streamed_range_positions: self.streamed_range_positions,
             range_positions_avoided: self.range_positions_avoided,
+            spill_plans: self.spill_plans,
+            spill_conflicts: self.spill_conflicts,
             cache_entries: self.cache.len(),
             cache_hits: self.cache_hits,
             cache_misses: self.cache_misses,
@@ -642,6 +754,39 @@ pub unsafe extern "C" fn superexcel_workbook_get_cell(
 }
 
 #[no_mangle]
+pub unsafe extern "C" fn superexcel_workbook_get_spill(
+    handle: u32,
+    pointer: *const u8,
+    len: usize,
+) -> *mut u8 {
+    let request = match parse_payload::<WorkbookCellRequest>(pointer, len) {
+        Ok(request) => request,
+        Err(error) => {
+            return write_json(json!({
+                "status": "error",
+                "value": "#VALOR!",
+                "value_type": "error",
+                "error": error,
+            }))
+        }
+    };
+    let mut registry = registry()
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let Some(workbook) = registry.workbooks.get_mut(&handle) else {
+        return write_json(missing_workbook(handle));
+    };
+    match workbook.spill_plan(&request.cell) {
+        Ok(plan) => write_json(json!({
+            "status": "ok",
+            "revision": workbook.revision,
+            "spill": plan,
+        })),
+        Err(error) => write_json(error_json(error)),
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn superexcel_workbook_stats(handle: u32) -> *mut u8 {
     let registry = registry()
         .lock()
@@ -813,6 +958,35 @@ mod tests {
             .apply_changes(HashMap::from([("A1".into(), json!(2))]))
             .unwrap();
         assert_eq!(affected, vec!["A1"]);
+    }
+
+    #[test]
+    fn plans_dynamic_spill_and_reports_blockers() {
+        let mut workbook = workbook(json!({
+            "A1": 10,
+            "A2": 20,
+            "A3": 30,
+            "B1": true,
+            "B2": false,
+            "B3": true,
+            "D1": "=FILTRO(A1:A3;B1:B3)",
+        }));
+        let ready = workbook.spill_plan("D1").unwrap();
+        assert_eq!(ready.status, "ready");
+        assert_eq!(ready.range, "D1:D2");
+        assert_eq!(ready.rows, 2);
+        assert_eq!(ready.cols, 1);
+        assert_eq!(ready.matrix, json!([[10.0], [30.0]]));
+        assert!(ready.blocked_by.is_empty());
+
+        workbook
+            .apply_changes(HashMap::from([("D2".into(), json!(999))]))
+            .unwrap();
+        let blocked = workbook.spill_plan("D1").unwrap();
+        assert_eq!(blocked.status, "blocked");
+        assert_eq!(blocked.value, json!("#DESPEJAR!"));
+        assert_eq!(blocked.blocked_by, vec!["D2"]);
+        assert_eq!(workbook.stats().spill_conflicts, 1);
     }
 
     #[test]

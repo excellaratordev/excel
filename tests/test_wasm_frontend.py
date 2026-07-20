@@ -32,15 +32,20 @@ def test_rust_engine_exposes_formula_and_stateful_workbook_runtime():
     assert "reverse_dependencies" in workbook_source
     assert "collect_affected" in workbook_source
     assert "cache_hits" in workbook_source
-    assert "const ABI_VERSION = 6" in contract
+    assert "const ABI_VERSION = 7" in contract
     assert "superexcel_compile_formula" in formula_source
     assert "compileFormula" in contract
     assert "SOMASES" in formula_source
     assert "PROCX" in formula_source
+    assert "FILTRO" in formula_source
+    assert "UNICO" in formula_source
+    assert "CLASSIFICAR" in formula_source
     assert "RangeDependencyIndex" in workbook_source
     assert "range_buckets" in workbook_source
     assert "occupied_cells" in workbook_source
     assert "evaluate_sparse_formula" in (ROOT / "wasm-engine/src/workbook/sparse.rs").read_text(encoding="utf-8")
     assert "createWorkbook" in contract
     assert "getWorkbookCell" in contract
+    assert "superexcel_workbook_get_spill" in workbook_source
+    assert "getWorkbookSpill" in contract
     assert "applyWorkbook" in bridge

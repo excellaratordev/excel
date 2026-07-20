@@ -8,10 +8,11 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 mod workbook;
 
-pub const ABI_VERSION: u32 = 6;
+pub const ABI_VERSION: u32 = 7;
 const IR_VERSION: u32 = 2;
 const MAX_PAYLOAD_BYTES: usize = 4 * 1024 * 1024;
 const MAX_RANGE_CELLS: usize = 4096;
+const MAX_DYNAMIC_ARRAY_CELLS: usize = 10_000;
 static LAST_RESULT_LEN: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, PartialEq)]
@@ -847,6 +848,9 @@ impl<'a> Evaluator<'a> {
             "PROCX" | "XLOOKUP" => self.xlookup(args),
             "INDICE" | "INDEX" => self.index_function(args),
             "CORRESP" | "MATCH" => self.match_function(args),
+            "FILTRO" | "FILTER" => self.filter_function(args),
+            "UNICO" | "UNIQUE" => self.unique_function(args),
+            "CLASSIFICAR" | "SORT" => self.sort_function(args),
             "ABS" => {
                 let value = self.evaluate(
                     args.first()
@@ -1114,6 +1118,165 @@ impl<'a> Evaluator<'a> {
             .unwrap_or(Value::Error("#N/D".into())))
     }
 
+    fn filter_function(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.len() < 2 || args.len() > 3 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let source = to_matrix(self.evaluate(&args[0])?);
+        let include = to_matrix(self.evaluate(&args[1])?);
+        if !matrix_is_rectangular(&source) || !matrix_is_rectangular(&include) {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        ensure_dynamic_array_limit(&source)?;
+        let height = source.len();
+        let width = source.first().map(Vec::len).unwrap_or(0);
+        let fallback = args
+            .get(2)
+            .map(|value| self.evaluate(value))
+            .transpose()?
+            .map(first_scalar)
+            .unwrap_or(Value::Error("#CALC!".into()));
+
+        let result = if include.len() == height && include.iter().all(|row| row.len() == 1) {
+            source
+                .into_iter()
+                .enumerate()
+                .filter_map(|(row, values)| {
+                    filter_include_truthy(&include[row][0]).then_some(values)
+                })
+                .collect::<Vec<_>>()
+        } else if include.len() == 1 && include.first().is_some_and(|row| row.len() == width) {
+            let columns = include[0]
+                .iter()
+                .enumerate()
+                .filter_map(|(column, value)| filter_include_truthy(value).then_some(column))
+                .collect::<Vec<_>>();
+            source
+                .into_iter()
+                .map(|row| {
+                    columns
+                        .iter()
+                        .map(|column| row.get(*column).cloned().unwrap_or(Value::Blank))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>()
+        } else if include.len() == height && include.iter().all(|row| row.len() == width) {
+            source
+                .into_iter()
+                .enumerate()
+                .filter_map(|(row, values)| {
+                    include[row]
+                        .iter()
+                        .all(filter_include_truthy)
+                        .then_some(values)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            return Ok(Value::Error("#VALOR!".into()));
+        };
+
+        if result.is_empty() || result.iter().all(Vec::is_empty) {
+            Ok(Value::Array(vec![vec![fallback]]))
+        } else {
+            ensure_dynamic_array_limit(&result)?;
+            Ok(Value::Array(result))
+        }
+    }
+
+    fn unique_function(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.len() != 1 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let matrix = to_matrix(self.evaluate(&args[0])?);
+        ensure_dynamic_array_limit(&matrix)?;
+        let mut unique = Vec::<Vec<Value>>::new();
+        for row in matrix {
+            if unique.iter().any(|existing| existing == &row) {
+                continue;
+            }
+            unique.push(row);
+        }
+        Ok(Value::Array(unique))
+    }
+
+    fn sort_function(&self, args: &[Ast]) -> Result<Value, EngineError> {
+        if args.is_empty() || args.len() > 4 {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        let mut matrix = to_matrix(self.evaluate(&args[0])?);
+        if !matrix_is_rectangular(&matrix) {
+            return Ok(Value::Error("#VALOR!".into()));
+        }
+        ensure_dynamic_array_limit(&matrix)?;
+        let sort_index = args
+            .get(1)
+            .map(|value| self.evaluate(value))
+            .transpose()?
+            .map(first_scalar)
+            .map(|value| to_number(&value))
+            .transpose()?
+            .unwrap_or(1.0)
+            .trunc() as isize
+            - 1;
+        let sort_index = sort_index.max(0) as usize;
+        let direction = args
+            .get(2)
+            .map(|value| self.evaluate(value))
+            .transpose()?
+            .map(first_scalar)
+            .map(|value| to_number(&value))
+            .transpose()?
+            .unwrap_or(1.0);
+        let direction = if direction == -1.0 { -1 } else { 1 };
+        let by_column = args
+            .get(3)
+            .map(|value| self.evaluate(value))
+            .transpose()?
+            .map(first_scalar)
+            .map(|value| truthy(&value))
+            .transpose()?
+            .unwrap_or(false);
+
+        if by_column {
+            if matrix.is_empty() {
+                return Ok(Value::Array(matrix));
+            }
+            let height = matrix.len();
+            let width = matrix.first().map(Vec::len).unwrap_or(0);
+            let mut columns = (0..width)
+                .map(|column| {
+                    (0..height)
+                        .map(|row| matrix[row].get(column).cloned().unwrap_or(Value::Blank))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            columns.sort_by(|left, right| {
+                let comparison = compare_values(
+                    left.get(sort_index).unwrap_or(&Value::Blank),
+                    right.get(sort_index).unwrap_or(&Value::Blank),
+                ) * direction;
+                comparison_ordering(comparison)
+            });
+            matrix = (0..height)
+                .map(|row| {
+                    columns
+                        .iter()
+                        .map(|column| column.get(row).cloned().unwrap_or(Value::Blank))
+                        .collect::<Vec<_>>()
+                })
+                .collect();
+        } else {
+            matrix.sort_by(|left, right| {
+                let comparison = compare_values(
+                    left.get(sort_index).unwrap_or(&Value::Blank),
+                    right.get(sort_index).unwrap_or(&Value::Blank),
+                ) * direction;
+                comparison_ordering(comparison)
+            });
+        }
+        Ok(Value::Array(matrix))
+    }
+
     fn aggregate(&self, args: &[Ast], mode: Aggregate) -> Result<Value, EngineError> {
         let mut values = Vec::new();
         for arg in args {
@@ -1192,6 +1355,44 @@ fn to_matrix(value: Value) -> Vec<Vec<Value>> {
     match value {
         Value::Array(rows) => rows,
         value => vec![vec![value]],
+    }
+}
+
+fn matrix_is_rectangular(matrix: &[Vec<Value>]) -> bool {
+    let width = matrix.first().map(Vec::len).unwrap_or(0);
+    matrix.iter().all(|row| row.len() == width)
+}
+
+fn ensure_dynamic_array_limit(matrix: &[Vec<Value>]) -> Result<(), EngineError> {
+    let cells = matrix.iter().map(Vec::len).sum::<usize>();
+    if cells > MAX_DYNAMIC_ARRAY_CELLS {
+        return Err(EngineError::unsupported(format!(
+            "Matriz dinâmica excede o limite experimental de {MAX_DYNAMIC_ARRAY_CELLS} células."
+        )));
+    }
+    Ok(())
+}
+
+fn filter_include_truthy(value: &Value) -> bool {
+    match value {
+        Value::Blank => false,
+        Value::Boolean(value) => *value,
+        Value::Number(value) => *value != 0.0,
+        Value::Text(value) | Value::Error(value) => !value.is_empty(),
+        Value::Array(rows) => rows
+            .first()
+            .and_then(|row| row.first())
+            .is_some_and(filter_include_truthy),
+    }
+}
+
+fn comparison_ordering(value: i8) -> std::cmp::Ordering {
+    if value < 0 {
+        std::cmp::Ordering::Less
+    } else if value > 0 {
+        std::cmp::Ordering::Greater
+    } else {
+        std::cmp::Ordering::Equal
     }
 }
 
@@ -1847,8 +2048,8 @@ mod tests {
     }
 
     #[test]
-    fn abi_is_version_six() {
-        assert_eq!(superexcel_abi_version(), 6);
+    fn abi_is_version_seven() {
+        assert_eq!(superexcel_abi_version(), 7);
     }
 
     #[test]
@@ -1931,8 +2132,43 @@ mod tests {
     }
 
     #[test]
-    fn reports_unsupported_functions_for_javascript_fallback() {
-        let response = evaluate("=FILTRO(A1:A2;B1:B2)", json!({}));
+    fn evaluates_dynamic_array_functions() {
+        let filtered = evaluate(
+            "=FILTRO(A1:B3;C1:C3)",
+            json!({
+                "A1": 1, "B1": "A", "C1": true,
+                "A2": 2, "B2": "B", "C2": false,
+                "A3": 3, "B3": "C", "C3": true
+            }),
+        );
+        assert_eq!(filtered.status, "ok");
+        assert_eq!(filtered.value, json!([[1.0, "A"], [3.0, "C"]]));
+
+        let unique = evaluate(
+            "=ÚNICO(A1:B4)",
+            json!({
+                "A1": 1, "B1": "A",
+                "A2": 1, "B2": "A",
+                "A3": 2, "B3": "B",
+                "A4": 1, "B4": "C"
+            }),
+        );
+        assert_eq!(unique.value, json!([[1.0, "A"], [2.0, "B"], [1.0, "C"]]));
+
+        let sorted = evaluate(
+            "=CLASSIFICAR(A1:B3;2;-1)",
+            json!({
+                "A1": "A", "B1": 10,
+                "A2": "B", "B2": 30,
+                "A3": "C", "B3": 20
+            }),
+        );
+        assert_eq!(sorted.value, json!([["B", 30.0], ["C", 20.0], ["A", 10.0]]));
+    }
+
+    #[test]
+    fn preserves_fallback_for_oversized_dynamic_arrays() {
+        let response = evaluate("=FILTRO(A1:A5000;B1:B5000)", json!({}));
         assert_eq!(response.status, "unsupported");
     }
 

@@ -12,7 +12,7 @@ const defaultWasm = path.resolve(currentDir, '../../wasm-engine/target/wasm32-un
 const wasmPath = path.resolve(process.argv[2] || defaultWasm);
 const engine = await contract.instantiate(fs.readFileSync(wasmPath));
 
-assert.equal(engine.version, 6);
+assert.equal(engine.version, 7);
 assert.equal(engine.validateOperation({ id: 'op-1', kind: 'cells.patch', changes: [] }), true);
 assert.equal(engine.validateOperation({ kind: 'cells.patch' }), false);
 
@@ -52,8 +52,26 @@ assert.deepEqual(rustIr.ast, javascriptIr.ast);
 assert.deepEqual(rustIr.dependencies, javascriptIr.dependencies);
 assert.deepEqual(rustIr.range_dependencies, javascriptIr.range_dependencies);
 
-const unsupported = engine.evaluateFormula('=FILTRO(A1:A2;B1:B2)', {});
-assert.equal(unsupported.status, 'unsupported');
+const filtered = engine.evaluateFormula('=FILTRO(A1:B3;C1:C3)', {
+  A1: 1, B1: 'A', C1: true,
+  A2: 2, B2: 'B', C2: false,
+  A3: 3, B3: 'C', C3: true,
+});
+assert.equal(filtered.status, 'ok');
+assert.deepEqual(filtered.value, [[1, 'A'], [3, 'C']]);
+
+const unique = engine.evaluateFormula('=ÚNICO(A1:B4)', {
+  A1: 1, B1: 'A', A2: 1, B2: 'A', A3: 2, B3: 'B', A4: 1, B4: 'C',
+});
+assert.deepEqual(unique.value, [[1, 'A'], [2, 'B'], [1, 'C']]);
+
+const sorted = engine.evaluateFormula('=CLASSIFICAR(A1:B3;2;-1)', {
+  A1: 'A', B1: 10, A2: 'B', B2: 30, A3: 'C', B3: 20,
+});
+assert.deepEqual(sorted.value, [['B', 30], ['C', 20], ['A', 10]]);
+
+const oversizedDynamic = engine.evaluateFormula('=FILTRO(A1:A5000;B1:B5000)', {});
+assert.equal(oversizedDynamic.status, 'unsupported');
 
 const created = engine.createWorkbook({
   A1: 2,
@@ -120,12 +138,39 @@ assert.ok(sparseStats.range_positions_avoided >= 99998);
 assert.ok(sparseStats.streamed_range_positions >= 100000);
 assert.equal(engine.destroyWorkbook(sparseWorkbook.handle), true);
 
+const dynamicWorkbook = engine.createWorkbook({
+  A1: 10,
+  A2: 20,
+  A3: 30,
+  B1: true,
+  B2: false,
+  B3: true,
+  D1: '=FILTRO(A1:A3;B1:B3)',
+});
+assert.equal(dynamicWorkbook.status, 'ok');
+const dynamicCell = engine.getWorkbookCell(dynamicWorkbook.handle, 'D1');
+assert.equal(dynamicCell.value_type, 'array');
+assert.deepEqual(dynamicCell.value, [[10], [30]]);
+const readySpill = engine.getWorkbookSpill(dynamicWorkbook.handle, 'D1');
+assert.equal(readySpill.status, 'ok');
+assert.equal(readySpill.spill.status, 'ready');
+assert.equal(readySpill.spill.range, 'D1:D2');
+assert.deepEqual(readySpill.spill.matrix, [[10], [30]]);
+engine.applyWorkbook(dynamicWorkbook.handle, { D2: 999 });
+const blockedSpill = engine.getWorkbookSpill(dynamicWorkbook.handle, 'D1');
+assert.equal(blockedSpill.spill.status, 'blocked');
+assert.equal(blockedSpill.spill.value, '#DESPEJAR!');
+assert.deepEqual(blockedSpill.spill.blocked_by, ['D2']);
+assert.equal(engine.destroyWorkbook(dynamicWorkbook.handle), true);
+
 console.log(JSON.stringify({
   wasm: 'ok',
   abi: engine.version,
-  tests: 22,
+  tests: 27,
   ir: rustIr.ir_version,
   business: ['SOMASES', 'PROCX'],
+  dynamic_arrays: ['FILTRO', 'ÚNICO', 'CLASSIFICAR'],
+  spill: { ready: readySpill.spill.range, blocked_by: blockedSpill.spill.blocked_by },
   stateful: {
     affected: applied.affected,
     cache_hits: statsAfter.cache_hits,

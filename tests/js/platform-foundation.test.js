@@ -30,4 +30,4 @@ test('simulação R1-R5 não perde operações e usa recuperação por delta', (
   assert.equal(result.scenarios.R5.snapshot_required, false);
 });
 
-test('runtime Rust/Wasm com avaliação esparsa usa ABI 6', () => assert.equal(ABI_VERSION, 6));
+test('runtime Rust/Wasm com matrizes dinâmicas usa ABI 7', () => assert.equal(ABI_VERSION, 7));
