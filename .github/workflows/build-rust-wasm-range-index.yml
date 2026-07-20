@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build-range-index:
-    if: github.head_ref == 'engine/rust-wasm-range-index-v4'
+    if: github.head_ref == 'engine/rust-wasm-range-index-v4' && github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -37,25 +37,34 @@ jobs:
       - name: Apply ABI 5 and range index
         run: python .phase/apply_range_index.py
 
-      - name: Validate range index implementation
+      - name: Validate and capture diagnostics
         run: |
-          python -m pip install --quiet pytest
-          cargo fmt --manifest-path wasm-engine/Cargo.toml
-          cargo test --manifest-path wasm-engine/Cargo.toml
-          sh scripts/build_wasm.sh
-          test -s static/wasm/superexcel_wasm_engine.wasm
-          node --check static/js/calculation/formula-parser.js
-          node --check static/js/wasm/engine-contract.js
-          node --test tests/js/formula-ir.test.js tests/js/platform-foundation.test.js
-          node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm
-          pytest -q tests/test_wasm_frontend.py
+          set +e
+          {
+            python -m pip install --quiet pytest &&
+            cargo fmt --manifest-path wasm-engine/Cargo.toml &&
+            cargo test --manifest-path wasm-engine/Cargo.toml &&
+            sh scripts/build_wasm.sh &&
+            test -s static/wasm/superexcel_wasm_engine.wasm &&
+            node --check static/js/calculation/formula-parser.js &&
+            node --check static/js/wasm/engine-contract.js &&
+            node --test tests/js/formula-ir.test.js tests/js/platform-foundation.test.js &&
+            node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm &&
+            pytest -q tests/test_wasm_frontend.py
+          } > .phase/range-index-validation.log 2>&1
+          status=$?
+          echo "$status" > .phase/range-index-validation.exit
+          cat .phase/range-index-validation.log
+          exit 0
 
-      - name: Commit clean range index implementation
+      - name: Persist generated code and diagnostics
         run: |
-          rm -f .phase/apply_range_index.py .github/workflows/build-rust-wasm-range-index.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "feat(wasm): index large range dependencies"
+          git commit -m "build(wasm): persist range index implementation and diagnostics"
           git pull --rebase origin engine/rust-wasm-range-index-v4
           git push origin HEAD:engine/rust-wasm-range-index-v4
+
+      - name: Enforce validation result
+        run: test "$(cat .phase/range-index-validation.exit)" = "0"
