@@ -34,10 +34,8 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup component add rustfmt
 
-      - name: Apply sparse range runtime
-        run: |
-          python .phase/fix_sparse_applicator.py
-          python .phase/apply_sparse_range_runtime.py
+      - name: Correct sparse workbook wiring
+        run: python .phase/fix_sparse_compile.py
 
       - name: Validate and capture diagnostics
         run: |
@@ -56,17 +54,27 @@ jobs:
           } > .phase/sparse-range-validation.log 2>&1
           status=$?
           echo "$status" > .phase/sparse-range-validation.exit
+          echo "$status" > /tmp/sparse-range-validation.exit
           cat .phase/sparse-range-validation.log
           exit 0
 
-      - name: Persist generated code and diagnostics
+      - name: Persist corrected implementation
         run: |
+          status="$(cat /tmp/sparse-range-validation.exit)"
+          if [ "$status" = "0" ]; then
+            rm -f .phase/apply_sparse_range_runtime.py \
+                  .phase/fix_sparse_applicator.py \
+                  .phase/fix_sparse_compile.py \
+                  .phase/sparse-range-validation.log \
+                  .phase/sparse-range-validation.exit \
+                  .github/workflows/build-rust-wasm-sparse-range.yml
+          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "build(wasm): persist sparse range runtime and diagnostics"
+          git commit -m "feat(wasm): evaluate large ranges sparsely"
           git pull --rebase origin engine/rust-wasm-sparse-range-v5
           git push origin HEAD:engine/rust-wasm-sparse-range-v5
 
       - name: Enforce validation result
-        run: test "$(cat .phase/sparse-range-validation.exit)" = "0"
+        run: test "$(cat /tmp/sparse-range-validation.exit)" = "0"
