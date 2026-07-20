@@ -34,10 +34,33 @@ jobs:
           rustup target add wasm32-unknown-unknown
           rustup component add rustfmt
 
-      - name: Apply ABI 4 and business functions
+      - name: Apply ABI 4 and capture diagnostics
         run: |
+          mkdir -p .phase
           base64 --decode .phase/apply_wasm_business_ir.py.gz.b64 | gzip --decompress > /tmp/apply_wasm_business_ir.py
-          python /tmp/apply_wasm_business_ir.py
+          set +e
+          python /tmp/apply_wasm_business_ir.py > .phase/apply-business-ir.log 2>&1
+          status=$?
+          echo "$status" > .phase/apply-business-ir.exit
+          cat .phase/apply-business-ir.log
+          exit 0
+
+      - name: Commit generated files and diagnostics
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes or diagnostics"
+            exit 0
+          fi
+          git commit -m "build(wasm): apply ABI 4 phase or persist diagnostics"
+          git pull --rebase origin engine/rust-wasm-business-functions-ir-v3
+          git push origin HEAD:engine/rust-wasm-business-functions-ir-v3
+
+      - name: Enforce apply result
+        run: |
+          test "$(cat .phase/apply-business-ir.exit)" = "0"
 
       - name: Validate Rust, IR parity and browser integration
         run: |
@@ -54,11 +77,12 @@ jobs:
           node tests/js/wasm-engine.integration.mjs static/wasm/superexcel_wasm_engine.wasm
           pytest -q tests/test_wasm_frontend.py
 
-      - name: Commit generated ABI 4 engine
+      - name: Commit compiled ABI 4 engine
         run: |
+          rm -f .phase/apply-business-ir.log .phase/apply-business-ir.exit
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add wasm-engine/src/lib.rs wasm-engine/src/workbook.rs static/js/calculation/formula-parser.js static/js/wasm/engine-contract.js static/js/wasm/formula-engine.js static/wasm/superexcel_wasm_engine.wasm tests/js/formula-ir.test.js tests/js/platform-foundation.test.js tests/js/wasm-engine.integration.mjs tests/test_wasm_frontend.py wasm-engine/Cargo.lock
+          git add -A
           if git diff --cached --quiet; then
             echo "No generated changes"
             exit 0
