@@ -41,7 +41,7 @@ Critério de saída atingido: alterar `A1` em uma cadeia `A1 -> B1 -> C1` invali
 
 ## Fase 3 — IR compartilhada e funções empresariais
 
-Estado: **implementado nesta entrega**.
+Estado: **implementado**.
 
 - ABI versão 4;
 - IR JSON versão 1 para fórmulas locais;
@@ -66,7 +66,8 @@ Estado: **implementado nesta entrega**.
 - invalidação por sobreposição exata após seleção de candidatos por bucket;
 - intervalos stateful de até 100.000 posições;
 - métricas separadas de arestas diretas, intervalos e buckets;
-- testes de recálculo transitivo, remoção de índices obsoletos e execução real do Wasm.
+- testes de recálculo transitivo, remoção de índices obsoletos e execução real do Wasm;
+- o índice compacta o grafo, mas a avaliação ainda percorre e materializa as posições do intervalo até o limite stateful.
 
 Critério de saída atingido: um intervalo de 100.000 posições usa um descritor de dependência e menos de 512 buckets, preservando recálculo seletivo.
 
